@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PCB Fan Placement</title>
+<meta name="description" content="Calculus-based thermal model of a PCB with a movable fan: live simulation, optimiser, theory and full analysis.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<nav class="top" aria-label="Main navigation"><div class="in">
+<a class="brand" href="index.html">PCB Fan Placement</a>
+<a class="l" href="index.html" aria-current="page">Overview</a>
+<a class="l" href="lab.html">Live lab</a>
+<a class="l" href="theory.html">Theory</a>
+<a class="l" href="analysis.html">Analysis</a>
+<a class="l" href="downloads.html">Code & data</a>
+<button id="themeBtn" aria-label="Toggle colour theme">Theme</button>
+</div></nav>
+<main class="wrap" id="main">
+
+<header class="hero">
+<div class="eyebrow">FM116 Advanced Calculus · Plaksha University</div>
+<h1>Where should the fan go?</h1>
+<p>A printed circuit board with three heat-generating chips and one movable, localised fan. The temperature field is the solution of a steady heat equation. Calculus then finds the best fan position, explains <em>why</em> it is best, and checks the whole simulation against exact results.</p>
+<div class="btns"><a class="btn" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600" href="lab.html">Open the live lab</a><a class="btn" href="analysis.html">Read the analysis</a></div>
+</header>
+
+<section class="tiles" aria-label="Headline results">
+<div class="tile"><span class="n">69.0<small>°C</small></span><span class="t">Hottest point with no fan (at the CPU)</span></div>
+<div class="tile"><span class="n">50.4<small>°C</small></span><span class="t">Hottest point with the fan at its best position, about (37.7, 50.3) mm</span></div>
+<div class="tile"><span class="n">2.00</span><span class="t">Measured order of accuracy of the solver, against an exact solution</span></div>
+<div class="tile"><span class="n">10<sup style="font-size:.5em">−13</sup></span><span class="t">Relative error of the global energy balance (heat in = heat out)</span></div>
+</section>
+
+<section class="grid2">
+<div class="card prose">
+<h2>The model in one line</h2>
+<p>Heat spreads sideways through the board and leaks into the air from both faces. In steady state the two balance at every point:</p>
+<div class="eq">$$kt\,\nabla^2 T\;-\;2h(x,y)\,(T-T_a)\;+\;q(x,y)=0,\qquad h=h_{\rm nat}+\Delta h\,e^{-r^2/2\sigma^2}$$</div>
+<p>The fan is a Gaussian patch of extra convection centred at $(x_f,y_f)$. Moving it changes only the coefficient $h$, so the question is how the solution $T$ depends on $(x_f,y_f)$.</p>
+</div>
+<div class="card prose">
+<h2>The main finding</h2>
+<p>The best position is <strong>not</strong> on the hottest chip. $T_{\max}$ is the maximum over several peaks, so at the optimum the CPU and regulator peaks are equal and their gradients point in opposite directions. That is a Lagrange (KKT) condition, and the analysis page verifies it numerically: the weighted gradient sum is zero to $10^{-3}$ K/mm.</p>
+<p>Along the way the project uses every strand of the course: gradients and directional derivatives, second-derivative tests, Lagrange multipliers, polar double integrals, flux, circulation, the Divergence and Green theorems, curvature, Taylor series and an ODE with an exact solution.</p>
+</div>
+</section>
+
+<section>
+<h2>Explore</h2>
+<div class="grid3">
+<a class="navcard" href="lab.html"><b>Live lab</b><span>Drag the fan, watch the field and the gradient of T<sub>max</sub> update. Run an optimiser, scan all positions, switch to a Taylor-polynomial fan, show heat-flow arrows.</span></a>
+<a class="navcard" href="theory.html"><b>Theory</b><span>The equation, the discretisation, the adjoint gradient and the KKT condition, with a map from each course outcome to where it is used.</span></a>
+<a class="navcard" href="analysis.html"><b>Analysis</b><span>Validation, critical points, the optimum, two Lagrange problems, the Divergence theorem checks, and a live Taylor-series demo.</span></a>
+<a class="navcard" href="downloads.html"><b>Code &amp; data</b><span>The Python scripts that produced every figure and number, the 2091-position scan as CSV, and how to reproduce it all.</span></a>
+</div>
+</section>
+
+<div class="callout honest prose"><strong>What this is and is not.</strong> Everything on this site is computed from the stated model. The chip powers, conductivity, convection coefficients and the Gaussian fan shape are assumptions chosen for illustration, and nothing was validated against a physical board. The checks show that the equations are <em>solved correctly</em>, not that the model describes a real product.</div>
+
+</main>
+<footer>
+FM116 Advanced Calculus · Plaksha University. Instructor: Dr. Suresh Kumar. Raghav Bagga (model, equation, simulation and analysis).<br>
+An educational steady-state approximation, not a validated CFD or product-design tool. All parameters and the Gaussian fan profile are assumptions; nothing has been compared with measurements.
+Heat-transfer framework adapted from Zhang, Y. &amp; Chen, L. (2024), <i>A modeling method for thermal steady-state simulation of the four-layer printed circuit board</i>, PLOS ONE 19(9), e0310237.
+</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{var t=localStorage.getItem("theme");if(t)root.setAttribute("data-theme",t);}catch(e){}
+  document.getElementById("themeBtn").addEventListener("click",function(){
+    var dark=root.getAttribute("data-theme")==="dark"||(!root.getAttribute("data-theme")&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);
+    var n=dark?"light":"dark";root.setAttribute("data-theme",n);try{localStorage.setItem("theme",n);}catch(e){}
+    document.dispatchEvent(new Event("themechange"));
+  });
+  if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}],throwOnError:false});
+})();
+</script>
+
+</body></html>

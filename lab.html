@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PCB Fan Placement Lab</title>
+<meta name="description" content="Interactive 2D heat-equation solver with a movable fan, live optimiser, board scan and gradient display.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<nav class="top" aria-label="Main navigation"><div class="in">
+<a class="brand" href="index.html">PCB Fan Placement</a>
+<a class="l" href="index.html">Overview</a>
+<a class="l" href="lab.html" aria-current="page">Live lab</a>
+<a class="l" href="theory.html">Theory</a>
+<a class="l" href="analysis.html">Analysis</a>
+<a class="l" href="downloads.html">Code & data</a>
+<button id="themeBtn" aria-label="Toggle colour theme">Theme</button>
+</div></nav>
+<main class="wrap" id="main">
+
+<header class="hero">
+<div class="eyebrow">Live simulation · runs in your browser</div>
+<h1>PCB Fan Placement Lab</h1>
+<p>Drag the fan across the board. The map is the numerical solution of the 2D heat equation (2 mm cells, 2000 unknowns), recomputed on every move with the same method as the Python code.</p>
+</header>
+
+<section class="bench">
+<div class="card">
+<div class="board-head"><h2>Board temperature</h2><span class="hint">Click or drag to move the fan. Arrow keys also work.</span></div>
+<div class="board" id="board">
+<canvas id="heat"></canvas><div id="chips"></div>
+<div class="fan" id="fan" tabindex="0" role="slider" aria-label="Fan position, use arrow keys to move"><div class="core"><svg width="20" height="20" viewBox="-10 -10 20 20" aria-hidden="true"><g fill="#6fe3ff"><ellipse cx="0" cy="-5" rx="2.6" ry="5"/><ellipse cx="0" cy="5" rx="2.6" ry="5"/><ellipse cx="-5" cy="0" rx="5" ry="2.6"/><ellipse cx="5" cy="0" rx="5" ry="2.6"/></g><circle r="2" fill="#06303a"/></svg></div></div>
+</div>
+<div class="legend"><span id="lo">25</span><div class="bar" id="bar"></div><span id="hi">70 °C</span></div>
+<div class="legend"><div class="key">
+<span><i></i>Contour at temperature limit</span><span><b></b>Hottest point</span><span><i class="dash"></i>Fan radius (σ)</span><span><i class="arr"></i>Steepest descent of T<sub>max</sub> / heat flow</span></div></div>
+</div>
+
+<div class="side">
+<div class="card">
+<h2>Readout</h2>
+<div class="readout">
+<div class="stat"><span class="l">Max temperature</span><span class="v" id="mTmax">–</span><span class="d" id="dTmax"></span></div>
+<div class="stat"><span class="l">Area above limit</span><span class="v" id="mArea">–</span><span class="d" id="dArea"></span></div>
+<div class="stat"><span class="l">Hottest point</span><span class="v" id="mHot" style="font-size:21px">–</span><span class="d" id="mHotWho"></span></div>
+<div class="stat"><span class="l">Mean board temp</span><span class="v" id="mMean" style="font-size:21px">–</span><span class="d" id="dMean"></span></div>
+</div>
+<div class="balance" id="balance"></div>
+</div>
+
+<div class="card ctl">
+<h2>Model controls</h2>
+<label class="toggle"><input type="checkbox" id="fanOn" checked> Fan running</label>
+<label class="toggle"><input type="checkbox" id="fluxOn"> Show heat-flow arrows (F = −kt∇T)</label>
+<div class="row"><label for="model">Fan profile</label><span></span>
+<select id="model" style="grid-column:1/-1"><option value="gauss">Gaussian (exact)</option><option value="1">Taylor, order 2 in r (paraboloid)</option><option value="2">Taylor, order 4 in r</option><option value="3">Taylor, order 6 in r</option><option value="4">Taylor, order 8 in r</option></select></div>
+<div class="row"><label for="dh">Fan strength, Δh</label><output id="dhO"></output><input type="range" id="dh" min="0" max="150" step="5" value="60"></div>
+<div class="row"><label for="sig">Fan radius, σ</label><output id="sigO"></output><input type="range" id="sig" min="4" max="30" step="1" value="12"></div>
+<div class="row"><label for="lim">Temperature limit</label><output id="limO"></output><input type="range" id="lim" min="35" max="85" step="1" value="60"></div>
+<div class="sub">Component power</div>
+<div class="row"><label for="p0">CPU</label><output id="p0O"></output><input type="range" id="p0" min="0" max="4" step="0.1" value="2"></div>
+<div class="row"><label for="p1">Regulator</label><output id="p1O"></output><input type="range" id="p1" min="0" max="4" step="0.1" value="1"></div>
+<div class="row"><label for="p2">Driver</label><output id="p2O"></output><input type="range" id="p2" min="0" max="4" step="0.1" value="0.8"></div>
+<div class="btns"><button id="reset">Reset all</button></div>
+</div>
+</div>
+</section>
+
+<section class="card">
+<h2>Find the best position</h2>
+<p class="hint">The optimiser is a compass search on T<sub>max</sub>(x<sub>f</sub>, y<sub>f</sub>): it tries steps in eight directions, moves when T<sub>max</sub> falls and halves the step otherwise. It converges to a point where two chip peaks are equal, which is exactly the tie condition of the theory page. The dashed cyan path on the board is its trail.</p>
+<div class="btns"><button class="primary" id="optBtn">Optimise fan position</button></div>
+<div class="scanread" id="optOut" style="margin-top:10px"></div>
+</section>
+
+<section class="card">
+<h2>Scan every fan position</h2>
+<p class="hint" style="margin:0 0 14px">Moves the fan across the whole board in 4 mm steps, solves the equation at each stop, and maps the maximum temperature. Click the map to place the fan there. (The Python scan in the downloads uses 2 mm steps.)</p>
+<div class="scan">
+<div><div class="scanbox" id="scanbox"><canvas id="scanCv"></canvas><div class="empty" id="scanEmpty">Run a scan to see how the maximum temperature depends on where the fan sits.</div></div>
+<div class="scanread" id="scanRead"></div><div class="scanread" id="scanLegend"></div></div>
+<div class="best">
+<div class="btns"><button class="primary" id="scanBtn">Scan whole board</button><button id="goBest" disabled>Move fan to best</button><button id="csvBtn" disabled>Download CSV</button></div>
+<progress id="prog" value="0" max="1" hidden></progress>
+<div class="objective" role="radiogroup" aria-label="Objective">
+<label><input type="radio" name="obj" value="tmax" checked> Lowest maximum temperature</label>
+<label><input type="radio" name="obj" value="area"> Smallest area above the limit</label></div>
+<div id="bestOut" class="hint">No scan yet.</div>
+</div></div>
+</section>
+
+<section class="card prose">
+<h2>Things to try</h2>
+<ul>
+<li><strong>Park the fan on the CPU.</strong> The CPU gets cooler but the regulator becomes the hottest part. The yellow gradient arrow points toward the regulator side, showing why the best spot is a compromise.</li>
+<li><strong>Press Optimise.</strong> It stops near (37.7, 50.3) mm for the default fan, where the readout's hottest point jumps between the CPU and the regulator as you nudge the fan.</li>
+<li><strong>Switch the fan profile to the order-2 Taylor model.</strong> The paraboloid is the local Taylor model of the fan (each polynomial is used only where it is within 2% of the Gaussian, and set to zero beyond). It recovers well under half of the cooling because the real fan reaches far beyond that region. Higher orders recover more. Expect about 61 °C instead of 50 °C at the optimum.</li>
+<li><strong>Show heat-flow arrows.</strong> They are the flux field, which is a gradient field, so it has no circulation. Arrows run from each chip to the fan and toward the edges.</li>
+<li><strong>Raise the limit slider to 69 °C</strong> and the no-fan hot region disappears. Lower it to 45 °C and watch the area metric.</li>
+</ul>
+</section>
+
+</main>
+<footer>
+FM116 Advanced Calculus · Plaksha University. Instructor: Dr. Suresh Kumar. Raghav Bagga (model, equation, simulation and analysis).<br>
+An educational steady-state approximation, not a validated CFD or product-design tool. All parameters and the Gaussian fan profile are assumptions; nothing has been compared with measurements.
+Heat-transfer framework adapted from Zhang, Y. &amp; Chen, L. (2024), <i>A modeling method for thermal steady-state simulation of the four-layer printed circuit board</i>, PLOS ONE 19(9), e0310237.
+</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{var t=localStorage.getItem("theme");if(t)root.setAttribute("data-theme",t);}catch(e){}
+  document.getElementById("themeBtn").addEventListener("click",function(){
+    var dark=root.getAttribute("data-theme")==="dark"||(!root.getAttribute("data-theme")&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);
+    var n=dark?"light":"dark";root.setAttribute("data-theme",n);try{localStorage.setItem("theme",n);}catch(e){}
+    document.dispatchEvent(new Event("themechange"));
+  });
+  if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}],throwOnError:false});
+})();
+</script>
+<script src="assets/lab.js"></script>
+</body></html>

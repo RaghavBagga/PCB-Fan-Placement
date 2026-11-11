@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Theory · PCB Fan Placement</title>
+<meta name="description" content="Derivation of the PCB heat model, its discretisation, the adjoint gradient and KKT optimality, with a course-outcome map.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<nav class="top" aria-label="Main navigation"><div class="in">
+<a class="brand" href="index.html">PCB Fan Placement</a>
+<a class="l" href="index.html">Overview</a>
+<a class="l" href="lab.html">Live lab</a>
+<a class="l" href="theory.html" aria-current="page">Theory</a>
+<a class="l" href="analysis.html">Analysis</a>
+<a class="l" href="downloads.html">Code & data</a>
+<button id="themeBtn" aria-label="Toggle colour theme">Theme</button>
+</div></nav>
+<main class="wrap" id="main">
+
+<header class="hero">
+<div class="eyebrow">Theory</div>
+<h1>From physics to calculus</h1>
+<p>How the heat equation arises, how it becomes a linear system, and how derivatives of the solution with respect to the fan position are obtained exactly.</p>
+</header>
+
+<section class="card prose">
+<h2>1. The heat equation and its length scale</h2>
+<p>For a thin board of thickness $t$ and effective in-plane conductivity $k$, the net heat flowing into a patch by conduction, $kt\nabla^2T$, balances loss through both faces, $2h(T-T_a)$, plus the generation $q$:</p>
+$$kt\,\nabla^2T-2h(x,y)(T-T_a)+q(x,y)=0,\qquad \nabla T\cdot\mathbf n=0\ \text{on the edges.}$$
+<p>Away from sources and with constant $h$ this becomes $\nabla^2\theta=\theta/\ell^2$ for $\theta=T-T_a$, with</p>
+$$\ell=\sqrt{\frac{kt}{2h}}=\sqrt{\frac{0.024}{20}}\ \text{m}\approx 34.6\ \text{mm}.$$
+<p>Heat from a source decays like $e^{-r/\ell}$, so a chip warms material within roughly $\ell$ of it. In one dimension the equation is the ODE $\theta''-\theta/\ell^2=-(q'/kt)\,\delta(x-x_0)$, whose exact solution (with insulated ends) is used as a test of the solver.</p>
+</section>
+
+<section class="card prose">
+<h2>2. Discretisation and the Taylor-series error</h2>
+<p>On a square grid of spacing $\varepsilon$, adding the Taylor expansions of $u(x\pm\varepsilon,y)$ and $u(x,y\pm\varepsilon)$ gives</p>
+$$\frac{u_E+u_W+u_N+u_S-4u}{\varepsilon^2}=\nabla^2u+\frac{\varepsilon^2}{12}\bigl(u_{xxxx}+u_{yyyy}\bigr)+O(\varepsilon^4),$$
+<p>so the Laplacian is approximated with error $O(\varepsilon^2)$. Writing a heat balance for each square cell gives one equation per cell,</p>
+$$kt\sum_{\rm nbrs}(\theta_{\rm nb}-\theta_c)-2h_c\varepsilon^2\theta_c+q_c\varepsilon^2=0,$$
+<p>that is the linear system $A\boldsymbol\theta=\mathbf b$ with $A=A_c+2\varepsilon^2\,\mathrm{diag}(h)$. The conduction matrix $A_c$ is symmetric and independent of the fan, so $A$ is symmetric positive definite and <em>only its diagonal changes when the fan moves</em>. That is why the scan of 2091 positions takes about ten seconds in Python, and why the lab responds instantly. The solver is a preconditioned conjugate gradient method.</p>
+</section>
+
+<section class="card prose">
+<h2>3. Conservation and the Divergence theorem</h2>
+<p>Integrating the equation over the board, the conduction term becomes a boundary integral by the Divergence theorem, and vanishes because the edges are insulated:</p>
+$$\sum_kP_k=\iint_\Omega 2h(T-T_a)\,dA.$$
+<p>Heat generated equals heat removed, for every fan position. The local form is $\operatorname{div}\mathbf F=q-2h\theta$ with flux $\mathbf F=-kt\nabla T$. The readout in the lab prints both sides of the balance on every update.</p>
+<p>The fan's total added convection is a polar integral:</p>
+$$\iint\Delta h\,e^{-r^2/2\sigma^2}dA=\Delta h\int_0^{2\pi}\!\!\int_0^\infty e^{-r^2/2\sigma^2}r\,dr\,d\phi=2\pi\sigma^2\Delta h.$$
+<p>This becomes the natural "airflow budget" constraint in the Lagrange problem.</p>
+</section>
+
+<section class="card prose">
+<h2>4. The gradient with respect to the fan position, by an adjoint solve</h2>
+<p>Only $h$ depends on the fan position. Differentiating $A\boldsymbol\theta=\mathbf b$ with respect to $x_f$:</p>
+$$A\,\frac{\partial\boldsymbol\theta}{\partial x_f}=-\frac{\partial A}{\partial x_f}\boldsymbol\theta,\qquad \frac{\partial h}{\partial x_f}=\Delta h\,e^{-r^2/2\sigma^2}\frac{x-x_f}{\sigma^2}.$$
+<p>For the temperature in one cell $i$, define $\boldsymbol\lambda=A^{-1}\mathbf e_i$ (one extra solve, using symmetry of $A$). Then</p>
+$$\frac{\partial T_i}{\partial x_f}=-\sum_m\lambda_m\,2\varepsilon^2\,\frac{\partial h_m}{\partial x_f}\,\theta_m,$$
+<p>and the same $\boldsymbol\lambda$ gives every other parameter derivative. One solve per chip peak yields the whole gradient, instead of two solves per parameter by finite differences. The result agrees with central differences to $1.6\times10^{-7}$ (relative, worst of 30 partial derivatives).</p>
+</section>
+
+<section class="card prose">
+<h2>5. Optimality when peaks tie: KKT</h2>
+<p>$T_{\max}=\max_kf_k$ is smooth except where peaks tie. At a tie of two peaks, the directional derivative of $T_{\max}$ along $\mathbf d$ is $\max(\nabla f_1\!\cdot\mathbf d,\nabla f_2\!\cdot\mathbf d)$, so the point is a local minimum exactly when some weight $w\in[0,1]$ satisfies</p>
+$$w\,\nabla f_1+(1-w)\,\nabla f_2=\mathbf 0.$$
+<p>In the plane this means the two gradients are opposite. This is the Lagrange condition for "minimise $s$ subject to $f_1\le s,\ f_2\le s$", with $w$ as multiplier. Gradient descent uses the minimum-norm vector in the convex hull of the tied gradients.</p>
+</section>
+
+<section class="card prose">
+<h2>6. Constrained placement problems</h2>
+<p><strong>Rail.</strong> If the fan must lie on $y_f=c$, the condition $\nabla T_{\max}=\lambda\nabla g$ gives $\partial T_{\max}/\partial x_f=0$ along the rail and $\lambda=\partial T_{\max}/\partial y_f$. The multiplier is the <em>shadow price</em> of the rail: $dT^*_{\max}/dc=\lambda$.</p>
+<p><strong>Airflow budget.</strong> Hold $g=2\pi\sigma^2\Delta h-C=0$. With $F=\sum_kw_kf_k$ the weighted peak, the Lagrange condition reduces to an elasticity condition,</p>
+$$\sigma\,\frac{\partial F}{\partial\sigma}=2\Delta h\,\frac{\partial F}{\partial\Delta h},$$
+<p>meaning the next unit of budget is equally effective whether spent widening or strengthening the fan.</p>
+</section>
+
+<section class="card">
+<h2>Map from the course outcomes to this project</h2>
+<div class="table"><table>
+<tr><th>Course outcome</th><th>Where it appears</th><th>Section</th></tr>
+<tr><td>Surfaces and coordinates</td><td>The temperature field $T(x,y)$ is a surface over the board; the fan profile is written in polar coordinates about its centre.</td><td class='m'>Lab, Theory</td></tr>
+<tr><td>Partial derivatives</td><td>The five-point stencil is a combination of second partial differences; $\partial T/\partial x_f$ is the sensitivity of the field to the fan.</td><td class='m'>Theory §2, §4</td></tr>
+<tr><td>Gradient, directional derivative</td><td>Gradient of $T_{\max}$ with respect to fan position (exact, by an adjoint solve); descent direction; heat flux $-kt\nabla T$.</td><td class='m'>Lab, Analysis §3</td></tr>
+<tr><td>Extrema, second-derivative test</td><td>Maxima at chip hot spots, saddles in between, classified with $D=T_{xx}T_{yy}-T_{xy}^2$.</td><td class='m'>Analysis §2</td></tr>
+<tr><td>Lagrange multipliers</td><td>Fan on a rail; fixed airflow budget $2\pi\sigma^2\Delta h=C$; the KKT tie condition; multipliers as shadow prices.</td><td class='m'>Analysis §4</td></tr>
+<tr><td>Multiple integrals</td><td>Energy balance over the board; $\iint \Delta h\,e^{-r^2/2\sigma^2}dA=2\pi\sigma^2\Delta h$ in polar coordinates; areas of hot regions.</td><td class='m'>Theory §3, Analysis §4</td></tr>
+<tr><td>Vector-valued functions</td><td>Heat-flow lines $\mathbf r(s)$: arc length, curvature $\kappa$ from the Hessian, torsion $=0$ for a planar curve.</td><td class='m'>Analysis §5</td></tr>
+<tr><td>Vector fields, conservative fields</td><td>$\mathbf F=-kt\nabla T$ is a gradient field, so it is conservative with zero curl.</td><td class='m'>Analysis §5</td></tr>
+<tr><td>Line integrals, flux, circulation</td><td>Outward flux through loops around the chips; zero circulation of $\mathbf F$.</td><td class='m'>Analysis §5</td></tr>
+<tr><td>Green, Stokes and Divergence theorems</td><td>$\oint\mathbf F\cdot\mathbf n\,ds=\iint(q-2h\theta)\,dA$ checked on six loops; area $=\tfrac12\oint(x\,dy-y\,dx)$ of an isotherm.</td><td class='m'>Analysis §5</td></tr>
+<tr><td>Taylor series</td><td>Stencil error $\frac{\varepsilon^2}{12}(u_{xxxx}+u_{yyyy})$; Taylor polynomials of the fan profile and their error bounds.</td><td class='m'>Theory §2, Analysis §6</td></tr>
+<tr><td>Introductory ODEs</td><td>The 1D strip reduces to $\theta''-\theta/\ell^2=-(q'/kt)\delta(x-x_0)$ with an exact solution used to test the solver.</td><td class='m'>Theory §1, Analysis §1</td></tr>
+</table></div>
+</section>
+
+</main>
+<footer>
+FM116 Advanced Calculus · Plaksha University. Instructor: Dr. Suresh Kumar. Raghav Bagga (model, equation, simulation and analysis).<br>
+An educational steady-state approximation, not a validated CFD or product-design tool. All parameters and the Gaussian fan profile are assumptions; nothing has been compared with measurements.
+Heat-transfer framework adapted from Zhang, Y. &amp; Chen, L. (2024), <i>A modeling method for thermal steady-state simulation of the four-layer printed circuit board</i>, PLOS ONE 19(9), e0310237.
+</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{var t=localStorage.getItem("theme");if(t)root.setAttribute("data-theme",t);}catch(e){}
+  document.getElementById("themeBtn").addEventListener("click",function(){
+    var dark=root.getAttribute("data-theme")==="dark"||(!root.getAttribute("data-theme")&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);
+    var n=dark?"light":"dark";root.setAttribute("data-theme",n);try{localStorage.setItem("theme",n);}catch(e){}
+    document.dispatchEvent(new Event("themechange"));
+  });
+  if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}],throwOnError:false});
+})();
+</script>
+
+</body></html>

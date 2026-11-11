@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Code & data · PCB Fan Placement</title>
+<meta name="description" content="Python scripts and CSV data behind the PCB fan placement analysis.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<nav class="top" aria-label="Main navigation"><div class="in">
+<a class="brand" href="index.html">PCB Fan Placement</a>
+<a class="l" href="index.html">Overview</a>
+<a class="l" href="lab.html">Live lab</a>
+<a class="l" href="theory.html">Theory</a>
+<a class="l" href="analysis.html">Analysis</a>
+<a class="l" href="downloads.html" aria-current="page">Code & data</a>
+<button id="themeBtn" aria-label="Toggle colour theme">Theme</button>
+</div></nav>
+<main class="wrap" id="main">
+
+<header class="hero">
+<div class="eyebrow">Reproducibility</div>
+<h1>Code and data</h1>
+<p>Everything on this site comes from these files. Put them in one folder and run them; each script writes its figure into a <code>results/</code> folder next to it.</p>
+<div class="btns"><a class="btn" href="https://github.com/RaghavBagga/PCB-Fan-Placement">View repository on GitHub</a></div>
+</header>
+
+<section class="card">
+<h2>Python scripts</h2>
+<div class="table"><table><tr><th>File</th><th>What it does</th></tr><tr><td class="m"><a href="assets/code/simulation.py" download>simulation.py</a></td><td>Core solver: finite-volume build, cached conduction matrix, fan scan, metrics, self-test. Run <code>python simulation.py</code>.</td></tr>
+<tr><td class="m"><a href="assets/code/Exact_checks.py" download>Exact_checks.py</a></td><td>Stencil, 1D fin, 2D convergence study with Richardson extrapolation, critical points. Needs <code>sympy</code>.</td></tr>
+<tr><td class="m"><a href="assets/code/Gradient.py" download>Gradient.py</a></td><td>Adjoint gradients of each chip's peak, KKT tie condition, minimum-norm descent.</td></tr>
+<tr><td class="m"><a href="assets/code/Lagrange.py" download>Lagrange.py</a></td><td>Rail constraint and fixed airflow budget, with multipliers checked by re-optimisation.</td></tr>
+<tr><td class="m"><a href="assets/code/VectorCalculus.py" download>VectorCalculus.py</a></td><td>Flux, circulation, Divergence and Green checks, isotherm arc length, flow-line curvature.</td></tr>
+<tr><td class="m"><a href="assets/code/Taylor.py" download>Taylor.py</a></td><td>Taylor polynomials of the fan profile and board solves with the truncated fan.</td></tr></table></div>
+<p class="hint" style="margin-top:12px">Requirements: Python 3.9+, <code>numpy</code>, <code>scipy</code>, <code>matplotlib</code>, and <code>sympy</code> for the exact checks. Install with <code>pip install numpy scipy matplotlib sympy</code>.</p>
+</section>
+
+<section class="card">
+<h2>Data</h2>
+<div class="table"><table>
+<tr><td class="m"><a href="assets/data/fan_scan.csv" download>fan_scan.csv</a></td><td>T<sub>max</sub>, hottest point and hot area for all 2091 fan positions (2 mm steps, default fan).</td></tr>
+<tr><td class="m"><a href="assets/data/summary.csv" download>summary.csv</a></td><td>No fan, best and worst positions.</td></tr>
+</table></div>
+</section>
+
+<section class="card prose">
+<h2>Reproduce the main results</h2>
+<pre class="eq mono">python simulation.py --test     # built-in self-test
+python simulation.py 2          # scan, 2 mm steps (~11 s)
+python Exact_checks.py          # validation figure
+python Gradient.py              # adjoint gradients and optimum
+python Lagrange.py              # constrained problems
+python VectorCalculus.py        # flux and theorem checks
+python Taylor.py                # Taylor analysis</pre>
+<p class="hint">The browser lab uses the same discretisation (2 mm cells, 5-point stencil, preconditioned conjugate gradients) as <code>simulation.py</code>, so the two agree; the lab's scan uses 4 mm steps for speed.</p>
+</section>
+
+</main>
+<footer>
+FM116 Advanced Calculus · Plaksha University. Instructor: Dr. Suresh Kumar. Raghav Bagga (model, equation, simulation and analysis).<br>
+An educational steady-state approximation, not a validated CFD or product-design tool. All parameters and the Gaussian fan profile are assumptions; nothing has been compared with measurements.
+Heat-transfer framework adapted from Zhang, Y. &amp; Chen, L. (2024), <i>A modeling method for thermal steady-state simulation of the four-layer printed circuit board</i>, PLOS ONE 19(9), e0310237.
+</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{var t=localStorage.getItem("theme");if(t)root.setAttribute("data-theme",t);}catch(e){}
+  document.getElementById("themeBtn").addEventListener("click",function(){
+    var dark=root.getAttribute("data-theme")==="dark"||(!root.getAttribute("data-theme")&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);
+    var n=dark?"light":"dark";root.setAttribute("data-theme",n);try{localStorage.setItem("theme",n);}catch(e){}
+    document.dispatchEvent(new Event("themechange"));
+  });
+  if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}],throwOnError:false});
+})();
+</script>
+
+</body></html>

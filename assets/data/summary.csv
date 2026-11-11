@@ -1,0 +1,5 @@
+case,x_fan_mm,y_fan_mm,Tmax_C,area_over_60C_mm2,area_over_45C_mm2
+no fan,,,69.039,232.0,6060.0
+best Tmax,38.0,50.0,50.497,0.0,352.0
+best area > 45 C,38.0,48.0,50.652,0.0,348.0
+worst Tmax,100.0,0.0,68.209,204.0,4808.0

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Analysis · PCB Fan Placement</title>
+<meta name="description" content="Validation, critical points, optimum and KKT condition, Lagrange problems, flux theorems and Taylor series for the PCB fan model.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<nav class="top" aria-label="Main navigation"><div class="in">
+<a class="brand" href="index.html">PCB Fan Placement</a>
+<a class="l" href="index.html">Overview</a>
+<a class="l" href="lab.html">Live lab</a>
+<a class="l" href="theory.html">Theory</a>
+<a class="l" href="analysis.html" aria-current="page">Analysis</a>
+<a class="l" href="downloads.html">Code & data</a>
+<button id="themeBtn" aria-label="Toggle colour theme">Theme</button>
+</div></nav>
+<main class="wrap" id="main">
+
+<header class="hero">
+<div class="eyebrow">Analysis</div>
+<h1>What the calculus shows</h1>
+<p>Every number below was produced by the Python scripts in the downloads, and is checked against an exact or independent result wherever one exists.</p>
+</header>
+
+<section class="card prose">
+<h2>1. Validation of the solver</h2>
+<div class="table"><table>
+<tr><th>Check</th><th>Result</th></tr>
+<tr><td>Five-point stencil on a smooth function, $h=0.2\dots0.025$</td><td>error ratios 3.97, 3.99, 4.00 (theory: 4)</td></tr>
+<tr><td>1D fin with exact cosh solution, $\varepsilon=4,2,1,0.5$ mm</td><td>relative errors $1.9\times10^{-3}\to3.0\times10^{-5}$, observed order 2.00</td></tr>
+<tr><td>2D peak temperature, $\varepsilon=4\dots0.25$ mm</td><td>observed order 1.87, 2.03, 2.00; Richardson limit 50.568 °C</td></tr>
+<tr><td>Uniform source and uniform $h$ (exact $T=T_a+q/2h$)</td><td>maximum error $2.4\times10^{-12}$</td></tr>
+<tr><td>Energy balance, three fan positions</td><td>relative error $\le10^{-13}$</td></tr>
+<tr><td>Adjoint gradient against central differences</td><td>worst relative error $1.6\times10^{-7}$</td></tr>
+</table></div>
+<figure><img src="assets/figures/exact_checks.png" alt="Convergence of the stencil, the 1D fin and the 2D peak temperature as the grid is refined, with slope-2 reference lines." loading="lazy"><figcaption>Convergence of the stencil, the 1D fin and the 2D peak temperature as the grid is refined, with slope-2 reference lines.</figcaption></figure>
+<p class="hint">At the lab's 2 mm grid there are only four to six cells across a chip, so the peak temperature carries a discretisation error of order 0.2 °C. That does not change which fan position is best.</p>
+</section>
+
+<section class="card prose">
+<h2>2. Temperature field, fan scan and critical points</h2>
+<p>Without a fan the maximum is 69.0 °C at the CPU. Scanning 2091 fan positions (2 mm steps):</p>
+<div class="table"><table>
+<tr><th>Case</th><th>Fan (x, y) mm</th><th>T<sub>max</sub> (°C)</th><th>Area &gt; 45 °C (mm²)</th></tr>
+<tr><td>No fan</td><td class="num">–</td><td class="num">69.04</td><td class="num">6060</td></tr>
+<tr><td>Best for T<sub>max</sub></td><td class="num">(38, 50)</td><td class="num">50.50</td><td class="num">352</td></tr>
+<tr><td>Best for area &gt; 45 °C</td><td class="num">(38, 48)</td><td class="num">50.65</td><td class="num">348</td></tr>
+<tr><td>Worst</td><td class="num">(100, 0)</td><td class="num">68.21</td><td class="num">4808</td></tr>
+</table></div>
+<figure><img src="assets/figures/fan_scan.png" alt="Maximum board temperature as a function of fan position. The minimum sits between the CPU and the regulator, not on the CPU." loading="lazy"><figcaption>Maximum board temperature as a function of fan position. The minimum sits between the CPU and the regulator, not on the CPU.</figcaption></figure>
+<p>With the fan at (38, 50) mm the field has three maxima and two saddles (second-derivative test, $D=T_{xx}T_{yy}-T_{xy}^2$):</p>
+<div class="table"><table>
+<tr><th>Location (mm)</th><th>T (°C)</th><th>T<sub>xx</sub></th><th>D</th><th>Type</th></tr>
+<tr><td class="num">(29.5, 50.0)</td><td class="num">50.5</td><td class="num">−0.229</td><td class="num">+0.0521</td><td>maximum (CPU)</td></tr>
+<tr><td class="num">(70.2, 54.9)</td><td class="num">50.4</td><td class="num">−0.315</td><td class="num">+0.0956</td><td>maximum (regulator)</td></tr>
+<tr><td class="num">(65.3, 20.0)</td><td class="num">48.0</td><td class="num">−0.188</td><td class="num">+0.0673</td><td>maximum (driver)</td></tr>
+<tr><td class="num">(69.9, 36.1)</td><td class="num">41.1</td><td class="num">−0.025</td><td class="num">−0.0011</td><td>saddle (regulator–driver)</td></tr>
+<tr><td class="num">(48.5, 50.1)</td><td class="num">37.7</td><td class="num">+0.061</td><td class="num">−0.0005</td><td>saddle (CPU–regulator)</td></tr>
+</table></div>
+</section>
+
+<section class="card prose">
+<h2>3. The optimum, by gradient descent and the KKT condition</h2>
+<p>Gradient descent from seven starting points converges to the same place, about $(37.7,\,50.25)$ mm, with $T_{\max}\approx50.40$ °C, matching the scan. There the CPU and regulator peaks are 50.414 and 50.385 °C (the driver is at 47.60 °C). The gradients of the two tied peaks are $(+0.3077,+0.0252)$ and $(-0.2175,-0.0191)$ K/mm, an angle of 179.7° apart, and</p>
+$$0.414\,\nabla f_{\rm CPU}+0.586\,\nabla f_{\rm reg}=(+0.00006,\,-0.00076)\ \text{K/mm},$$
+<p>which is zero to the accuracy of the tie tolerance. Along a line through the optimum the CPU peak alone is lowest (about 49.3 °C) with the fan almost on the CPU, but then the regulator is the hottest part: the optimum gives up about 1.1 °C on the CPU to help the regulator.</p>
+<figure><img src="assets/figures/gradient_field.png" alt="Gradients of the individual chip peaks with respect to fan position, and descent paths converging to the tie point." loading="lazy"><figcaption>Gradients of the individual chip peaks with respect to fan position, and descent paths converging to the tie point.</figcaption></figure>
+</section>
+
+<section class="card prose">
+<h2>4. Constrained problems</h2>
+<p><strong>Rail $y=15$ mm.</strong> The best position on the rail is $x=34.09$ mm with $T_{\max}=62.88$ °C, 12.5 °C worse than the free optimum. The multiplier is $\lambda=-0.2814$ K/mm. Re-optimising with the rail at 14 mm and 16 mm gives $dT^*_{\max}/dc=-0.2816$ K/mm, in agreement to 0.1%.</p>
+<p><strong>Fixed airflow budget</strong> $C=2\pi\sigma^2\Delta h=0.0543$ W/K (the default fan), with the position re-optimised for each radius:</p>
+<div class="table"><table>
+<tr><th>σ (mm)</th><th>Δh (W/m²K)</th><th>best fan (x, y) mm</th><th>T<sub>max</sub> (°C)</th></tr>
+<tr><td class="num">4</td><td class="num">540</td><td class="num">(39.6, 51.1)</td><td class="num">51.71</td></tr>
+<tr><td class="num">6</td><td class="num">240</td><td class="num">(40.6, 51.0)</td><td class="num">50.98</td></tr>
+<tr><td class="num">8</td><td class="num">135</td><td class="num">(40.7, 50.8)</td><td class="num">50.48</td></tr>
+<tr><td class="num">10</td><td class="num">86.4</td><td class="num">(39.7, 50.6)</td><td class="num">50.27</td></tr>
+<tr><td class="num">12 (default)</td><td class="num">60</td><td class="num">(37.7, 50.2)</td><td class="num">50.40</td></tr>
+<tr><td class="num">16</td><td class="num">33.8</td><td class="num">(31.9, 50.3)</td><td class="num">52.09</td></tr>
+<tr><td class="num">20</td><td class="num">21.6</td><td class="num">(32.7, 50.4)</td><td class="num">54.30</td></tr>
+<tr><td class="num">30</td><td class="num">9.6</td><td class="num">(34.3, 49.4)</td><td class="num">58.40</td></tr>
+<tr><td class="num">40</td><td class="num">5.4</td><td class="num">(36.1, 49.0)</td><td class="num">61.20</td></tr>
+</table></div>
+<p>The joint optimum is the fan at (39.45, 50.53) mm with $\sigma=10.3$ mm and $\Delta h=81.5$ W/(m²K), where $T_{\max}=50.264$ °C. The multiplier from the $\sigma$-component is $-106.89$ K per (W/K) and from the $\Delta h$-component $-107.00$; the elasticity condition reads $-11.605$ K against $-11.618$ K. The radius optimisation improves on the default fan by only <strong>0.14 °C</strong>, so the robust finding is the shape of the trade-off: wide, weak fans lose steeply and very narrow jets lose gently. The shadow price from re-optimising with the budget changed by ±2% is $-102.7$ K per (W/K), within 4% of $\lambda$, limited by the optimiser's tie tolerance.</p>
+<figure><img src="assets/figures/lagrange.png" alt="Left: best T_max along the rail and its multiplier. Right: best T_max against fan radius at fixed airflow budget." loading="lazy"><figcaption>Left: best T_max along the rail and its multiplier. Right: best T_max against fan radius at fixed airflow budget.</figcaption></figure>
+</section>
+
+<section class="card prose">
+<h2>5. Heat flux, Green's and the Divergence theorem</h2>
+<p>The flux $\mathbf F=-kt\nabla T$ is a gradient field, hence conservative (zero curl). Its divergence is $q-2h\theta$, so for any loop</p>
+$$\oint_C\mathbf F\cdot\mathbf n\,ds=\iint_D(q-2h\theta)\,dA.$$
+<p>The left side uses only $\nabla T$ on the loop; the right side uses only chip power and cooling inside. They are computed independently:</p>
+<div class="table"><table>
+<tr><th>Loop</th><th>Line integral (W)</th><th>Area integral (W)</th></tr>
+<tr><td>Circle R = 15 mm around the CPU</td><td class="num">+0.8615</td><td class="num">+0.8618</td></tr>
+<tr><td>Circle R = 12 mm around the regulator</td><td class="num">+0.7862</td><td class="num">+0.7863</td></tr>
+<tr><td>Circle R = 10 mm around the driver</td><td class="num">+0.6776</td><td class="num">+0.6777</td></tr>
+<tr><td>Circle R = 6 mm in the cooled gap (no chip)</td><td class="num">−0.0571</td><td class="num">−0.0569</td></tr>
+<tr><td>Circle R = 6 mm at the saddle point</td><td class="num">−0.1424</td><td class="num">−0.1427</td></tr>
+<tr><td>Rectangle 15 ≤ x ≤ 85, 38 ≤ y ≤ 68 mm</td><td class="num">+1.0196</td><td class="num">+1.0204</td></tr>
+</table></div>
+<p>All six agree to within 0.1%. Negative values mean the fan removes more heat inside the loop than the loop generates, so heat flows in. For the 60 °C isotherm without a fan, the arc length is 54.18 mm and Green's theorem gives an enclosed area of 232.8 mm² against 235.0 mm² from counting cells (1%); the isoperimetric ratio $P^2/4\pi A=1.004$ says the hot region is almost circular. A heat-flow line from (65, 56) mm is 39.6 mm long with peak curvature $\kappa=0.227$ mm⁻¹; the Hessian formula $\kappa=|(I-\tau\tau^T)H\tau|/|\nabla T|$ and the turning rate of the computed path agree to 0.5%. The line is planar, so its torsion is zero.</p>
+<div class="callout honest"><strong>Honest note.</strong> The circulation of $\mathbf F$ being about $10^{-13}$ W is not an independent test: a discrete gradient field has zero circulation by construction. The flux (Divergence theorem) checks are the independent ones.</div>
+<figure><img src="assets/figures/vector_calculus.png" alt="Loops, the 60 °C isotherm, and a heat-flow line used for the flux, area, arc-length and curvature checks." loading="lazy"><figcaption>Loops, the 60 °C isotherm, and a heat-flow line used for the flux, area, arc-length and curvature checks.</figcaption></figure>
+</section>
+
+<section class="card prose">
+<h2>6. Taylor series of the fan profile (live)</h2>
+<p>Write the fan as $e^{-u}$, $u=r^2/2\sigma^2$. The degree-$m$ Taylor polynomial in $u$ is $P_m(u)=\sum_{k=0}^m(-u)^k/k!$ with error at most $u^{m+1}/(m+1)!$ (alternating series). Since $u\propto r^2$, degree $m$ in $u$ is order $2m$ in $r$. The lowest model, $m=1$ (order 2 in $r$), is the paraboloid $h\approx h_{\rm nat}+\Delta h(1-r^2/2\sigma^2)$. It vanishes at $r=\sqrt2\,\sigma$, and its polar integral over that support is $\pi\sigma^2\Delta h$, <em>exactly half</em> of the Gaussian's $2\pi\sigma^2\Delta h$. Move the sliders:</p>
+<div class="grid2" style="align-items:center">
+<div><canvas class="plot" id="tplot" aria-label="Plot of exp(-u) and its Taylor polynomial against r over sigma"></canvas>
+<div class="hint">Black: exact fan profile. Orange: Taylor polynomial. Shaded: where they agree to within 0.02.</div></div>
+<div class="ctl" style="display:flex;flex-direction:column;gap:12px">
+<div class="row"><label for="tm">Degree m in u (order 2m in r)</label><output id="tmO"></output><input type="range" id="tm" min="0" max="12" step="1" value="1"></div>
+<div class="row"><label for="tr">Probe radius r/σ</label><output id="trO"></output><input type="range" id="tr" min="0" max="4" step="0.05" value="1"></div>
+<div class="scanread" id="tread" style="font-size:13px"></div>
+</div></div>
+<p>Using each polynomial only where it is within 2% and zero beyond (high-degree polynomials grow without bound far away), the full board solution gives:</p>
+<div class="table"><table>
+<tr><th>Fan model</th><th>Valid out to</th><th>Fan effect captured</th><th>T<sub>max</sub> (°C)</th></tr>
+<tr><td>Order 2 in r (paraboloid)</td><td class="num">0.64 σ</td><td class="num">18.6%</td><td class="num">61.20</td></tr>
+<tr><td>Order 4 in r</td><td class="num">1.01 σ</td><td class="num">40.5%</td><td class="num">55.76</td></tr>
+<tr><td>Order 6 in r</td><td class="num">1.32 σ</td><td class="num">57.6%</td><td class="num">53.20</td></tr>
+<tr><td>Order 8 in r</td><td class="num">1.57 σ</td><td class="num">71.4%</td><td class="num">52.21</td></tr>
+<tr><td>Exact Gaussian</td><td class="num">all r</td><td class="num">100%</td><td class="num">50.40</td></tr>
+<tr><td>No fan</td><td class="num">–</td><td class="num">0%</td><td class="num">69.04</td></tr>
+</table></div>
+<p>The series needs 5 terms for accuracy $10^{-3}$ at $r=\sigma$, 10 at $2\sigma$, 17 at $3\sigma$ and 26 at $4\sigma$. A local polynomial model cannot represent a fan whose influence extends over several radii; the lab's "Fan profile" menu lets you see this directly. Used only where accurate, the paraboloid recovers 42% of the exact fan's cooling (the 18.6% column is the share of the fan's total convection it carries). On its full support $r\le\sqrt2\sigma$ it carries exactly half.</p>
+<figure><img src="assets/figures/taylor.png" alt="Taylor polynomials against the exact fan profile, their error bounds, and the resulting board temperatures." loading="lazy"><figcaption>Taylor polynomials against the exact fan profile, their error bounds, and the resulting board temperatures.</figcaption></figure>
+</section>
+
+<section class="card prose">
+<h2>Assumptions and limits</h2>
+<ul>
+<li>Chip powers and positions, conductivity, convection coefficients and the Gaussian fan profile are assumed for illustration. A real fan produces a directional flow pattern.</li>
+<li>The model is steady state and two-dimensional, with one effective conductivity instead of a layered stack-up, insulated edges, constant $h_{\rm nat}$ and no radiation. Zhang and Chen include layered conduction, vias, Joule heating and temperature-dependent boundaries; none of that is modelled here.</li>
+<li>No experimental validation was performed. The checks show the equations are solved correctly, not that the model matches a physical board.</li>
+<li>$T_{\max}$ is not smooth where peaks tie; the optimiser handles that with the convex-hull treatment of the theory page.</li>
+</ul>
+</section>
+
+</main>
+<footer>
+FM116 Advanced Calculus · Plaksha University. Instructor: Dr. Suresh Kumar. Raghav Bagga (model, equation, simulation and analysis).<br>
+An educational steady-state approximation, not a validated CFD or product-design tool. All parameters and the Gaussian fan profile are assumptions; nothing has been compared with measurements.
+Heat-transfer framework adapted from Zhang, Y. &amp; Chen, L. (2024), <i>A modeling method for thermal steady-state simulation of the four-layer printed circuit board</i>, PLOS ONE 19(9), e0310237.
+</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{var t=localStorage.getItem("theme");if(t)root.setAttribute("data-theme",t);}catch(e){}
+  document.getElementById("themeBtn").addEventListener("click",function(){
+    var dark=root.getAttribute("data-theme")==="dark"||(!root.getAttribute("data-theme")&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);
+    var n=dark?"light":"dark";root.setAttribute("data-theme",n);try{localStorage.setItem("theme",n);}catch(e){}
+    document.dispatchEvent(new Event("themechange"));
+  });
+  if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}],throwOnError:false});
+})();
+</script>
+<script src="assets/taylor_demo.js"></script>
+</body></html>
