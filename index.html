@@ -1,83 +1,570 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PCB Fan Placement</title>
-<meta name="description" content="Calculus-based thermal model of a PCB with a movable fan: live simulation, optimiser, theory and full analysis.">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
-<link rel="stylesheet" href="assets/style.css">
-</head><body>
-<a class="skip-link" href="#main">Skip to content</a>
-<nav class="top" aria-label="Main navigation"><div class="in">
-<a class="brand" href="index.html">PCB Fan Placement</a>
-<a class="l" href="index.html" aria-current="page">Overview</a>
-<a class="l" href="lab.html">Live lab</a>
-<a class="l" href="theory.html">Theory</a>
-<a class="l" href="analysis.html">Analysis</a>
-<a class="l" href="downloads.html">Code & data</a>
-<button id="themeBtn" aria-label="Toggle colour theme">Theme</button>
-</div></nav>
-<main class="wrap" id="main">
+<meta name="description" content="Interactive PCB fan placement: temperature surface, optimum, and ODE simulation (FM116).">
+</head>
+<body>
 
-<header class="hero">
-<div class="eyebrow">FM116 Advanced Calculus · Plaksha University</div>
-<h1>Where should the fan go?</h1>
-<p>A printed circuit board with three heat-generating chips and one movable, localised fan. The temperature field is the solution of a steady heat equation. Calculus then finds the best fan position, explains <em>why</em> it is best, and checks the whole simulation against exact results.</p>
-<div class="btns"><a class="btn" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600" href="lab.html">Open the live lab</a><a class="btn" href="analysis.html">Read the analysis</a></div>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#f5f2ec; --panel:#fffdf8; --ink:#1e1c19; --muted:#6a645a; --line:#dcd5c8; --soft:#ece6da;
+  --accent:#c2410c; --fan:#0f766e; --good:#166534; --bad:#b91c1c; --warn:#b45309;
+  --c0:#d9480f; --c1:#7c3aed; --c2:#0369a1; --grid:#e6dfd2;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#14161a; --panel:#1b1e24; --ink:#ece8e1; --muted:#9d988d; --line:#2c3038; --soft:#23272e;
+  --accent:#fb923c; --fan:#2dd4bf; --good:#4ade80; --bad:#f87171; --warn:#fbbf24;
+  --c0:#fb923c; --c1:#a78bfa; --c2:#38bdf8; --grid:#292d35; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#14161a; --panel:#1b1e24; --ink:#ece8e1; --muted:#9d988d; --line:#2c3038; --soft:#23272e;
+  --accent:#fb923c; --fan:#2dd4bf; --good:#4ade80; --bad:#f87171; --warn:#fbbf24;
+  --c0:#fb923c; --c1:#a78bfa; --c2:#38bdf8; --grid:#292d35; color-scheme:dark;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);margin:0;
+  padding-block:28px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+header .kick{font:500 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(28px,5vw,42px);line-height:1.1;margin:6px 0 10px;font-weight:600;text-wrap:balance}
+.lede{max-width:66ch;color:var(--muted);margin:0}
+h2{font-size:20px;margin:0 0 4px;font-weight:600;text-wrap:balance}
+.sub{color:var(--muted);margin:0 0 14px;max-width:70ch}
+.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+canvas{width:100%;aspect-ratio:5/4;display:block;border-radius:6px;background:var(--soft);touch-action:none;cursor:crosshair}
+canvas.wide{aspect-ratio:11/5;cursor:default}
+canvas:focus-visible{outline:2px solid var(--fan);outline-offset:2px}
+.bar{height:10px;border-radius:5px;margin-top:10px}
+.ticks{display:flex;justify-content:space-between;font:11px var(--mono);color:var(--muted);margin-top:3px}
+.legend{font-size:12.5px;color:var(--muted);margin-top:8px}
+.big{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.big .v{font:500 44px/1 var(--mono)} .big .u{font:500 18px var(--mono);color:var(--muted)}
+.big .who{color:var(--muted);font-size:13.5px}
+.chip{display:grid;grid-template-columns:86px 1fr 62px;gap:8px;align-items:center;margin:9px 0;font-size:13.5px}
+.chip .nm{font-weight:600}.chip .t{font:500 14px var(--mono);text-align:right}
+.chip .track{height:8px;background:var(--soft);border-radius:4px;position:relative;overflow:hidden}
+.chip .fill{position:absolute;inset:0 auto 0 0;border-radius:4px}
+.chip .meta{grid-column:2/4;font:11.5px var(--mono);color:var(--muted);margin-top:-4px}
+.msg{font-size:13.5px;min-height:3.2em;margin:10px 0 0;padding:9px 11px;background:var(--soft);border-radius:6px}
+.msg b{font-weight:600}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+button,select{font:500 13.5px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--muted)} button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--fan);outline-offset:1px}
+button.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+:root[data-theme="dark"] button.pri{color:#14161a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) button.pri{color:#14161a}}
+details{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font-weight:600;font-size:13.5px}
+.sl{display:grid;grid-template-columns:118px 1fr 58px;gap:8px;align-items:center;font-size:13px;margin:8px 0}
+.sl output{font:12.5px var(--mono);text-align:right}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.chk{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-top:8px;color:var(--muted)}
+.chk label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.pill{display:inline-block;font:500 11.5px var(--mono);padding:2px 8px;border-radius:99px;border:1px solid currentColor}
+.ok{color:var(--good)} .no{color:var(--bad)} .wr{color:var(--warn)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{font:500 11.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+td.id{font:500 13px var(--mono);color:var(--accent);white-space:nowrap;width:1%}
+.scroll{overflow-x:auto}
+.ev{font:12.5px var(--mono);color:var(--muted)}
+.cards4{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.cards4 .card h3{margin:0 0 4px;font-size:14px}.cards4 .card p{margin:0;font-size:13px;color:var(--muted)}
+footer{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+code,.mono{font-family:var(--mono);font-size:.92em}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="kick">FM116 Advanced Calculus · Plaksha University</div>
+  <h1>PCB Fan Placement</h1>
+  <p class="lede">Drag the fan across a 100 × 80 mm board. The temperature surface, the three chip temperatures and the optimum are recomputed live from the same model as the report: Gaussian hot spots, a Gaussian cooling bump, and a three-equation linear system.</p>
 </header>
 
-<section class="tiles" aria-label="Headline results">
-<div class="tile"><span class="n">69.0<small>°C</small></span><span class="t">Hottest point with no fan (at the CPU)</span></div>
-<div class="tile"><span class="n">50.4<small>°C</small></span><span class="t">Hottest point with the fan at its best position, about (37.7, 50.3) mm</span></div>
-<div class="tile"><span class="n">2.00</span><span class="t">Measured order of accuracy of the solver, against an exact solution</span></div>
-<div class="tile"><span class="n">10<sup style="font-size:.5em">−13</sup></span><span class="t">Relative error of the global energy balance (heat in = heat out)</span></div>
+<section id="s1">
+  <h2>1 · Move the fan</h2>
+  <p class="sub">Click or drag on the board, or focus it and use the arrow keys (1 mm per press). The arrow at the fan points the way that lowers the hottest chip fastest.</p>
+  <div class="grid">
+    <div class="card">
+      <canvas id="board" tabindex="0" role="img" aria-label="Temperature surface of the board with a draggable fan"></canvas>
+      <div class="bar" id="cbar1"></div>
+      <div class="ticks"><span>25 °C</span><span>40</span><span>55</span><span>70</span><span>75 °C</span></div>
+      <div class="chk">
+        <label><input type="checkbox" id="optIso" checked> isotherms (every 5 °C)</label>
+        <label><input type="checkbox" id="optArrow" checked> cooling direction</label>
+      </div>
+      <div class="legend">Circle = fan radius σ. Squares = chips. Same colour scale throughout, so positions can be compared.</div>
+    </div>
+    <div class="card">
+      <div class="big"><span class="v" id="tmax">–</span><span class="u">°C</span><span class="who" id="who"></span></div>
+      <div id="chips"></div>
+      <div class="msg" id="msg"></div>
+      <div class="row">
+        <button class="pri" id="bFind">Find optimum</button>
+        <button id="bOnOff">Fan off</button>
+        <button id="bCPU">Over CPU</button>
+        <button id="bReg">Over regulator</button>
+      </div>
+      <details>
+        <summary>Parameters (assumed values, see A9)</summary>
+        <div id="sliders"></div>
+        <div class="row"><button id="bDefaults">Reset parameters</button></div>
+      </details>
+    </div>
+  </div>
 </section>
 
-<section class="grid2">
-<div class="card prose">
-<h2>The model in one line</h2>
-<p>Heat spreads sideways through the board and leaks into the air from both faces. In steady state the two balance at every point:</p>
-<div class="eq">$$kt\,\nabla^2 T\;-\;2h(x,y)\,(T-T_a)\;+\;q(x,y)=0,\qquad h=h_{\rm nat}+\Delta h\,e^{-r^2/2\sigma^2}$$</div>
-<p>The fan is a Gaussian patch of extra convection centred at $(x_f,y_f)$. Moving it changes only the coefficient $h$, so the question is how the solution $T$ depends on $(x_f,y_f)$.</p>
-</div>
-<div class="card prose">
-<h2>The main finding</h2>
-<p>The best position is <strong>not</strong> on the hottest chip. $T_{\max}$ is the maximum over several peaks, so at the optimum the CPU and regulator peaks are equal and their gradients point in opposite directions. That is a Lagrange (KKT) condition, and the analysis page verifies it numerically: the weighted gradient sum is zero to $10^{-3}$ K/mm.</p>
-<p>Along the way the project uses every strand of the course: gradients and directional derivatives, second-derivative tests, Lagrange multipliers, polar double integrals, flux, circulation, the Divergence and Green theorems, curvature, Taylor series and an ODE with an exact solution.</p>
-</div>
+<section id="s2">
+  <h2>2 · Every possible fan position</h2>
+  <p class="sub" id="s2sub">Each point is a fan position, coloured by the temperature of the hottest chip there. The valley floor is where the two hottest chips are equally hot; the optimum sits on it at the point where their gradients cancel.</p>
+  <div class="grid">
+    <div class="card">
+      <canvas id="land" tabindex="-1" role="img" aria-label="Hottest chip temperature as a function of fan position"></canvas>
+      <div class="bar" id="cbar2"></div>
+      <div class="ticks"><span id="lmin">–</span><span id="lmid"></span><span id="lmax">–</span></div>
+      <div class="legend">Thin lines: levels of T<sub>max</sub> every 2 °C. Dashed: the two tied chips are equal. ★ optimum. White ring: fan now. Click or drag to move the fan.</div>
+    </div>
+    <div class="card">
+      <h2 style="font-size:16px">What the picture says</h2>
+      <p style="margin:6px 0;font-size:13.5px" id="landText"></p>
+      <p class="ev" id="landEv"></p>
+    </div>
+  </div>
 </section>
 
-<section>
-<h2>Explore</h2>
-<div class="grid3">
-<a class="navcard" href="lab.html"><b>Live lab</b><span>Drag the fan, watch the field and the gradient of T<sub>max</sub> update. Run an optimiser, scan all positions, switch to a Taylor-polynomial fan, show heat-flow arrows.</span></a>
-<a class="navcard" href="theory.html"><b>Theory</b><span>The equation, the discretisation, the adjoint gradient and the KKT condition, with a map from each course outcome to where it is used.</span></a>
-<a class="navcard" href="analysis.html"><b>Analysis</b><span>Validation, critical points, the optimum, two Lagrange problems, the Divergence theorem checks, and a live Taylor-series demo.</span></a>
-<a class="navcard" href="downloads.html"><b>Code &amp; data</b><span>The Python scripts that produced every figure and number, the 2091-position scan as CSV, and how to reproduce it all.</span></a>
-</div>
+<section id="s3">
+  <h2>3 · Switch it on: the ODE system</h2>
+  <p class="sub">Starting from a cold board at ambient, <span class="mono">C θ′ = P − M θ</span> is stepped forward in time. Choose the method and the step size. Euler blows up if the step is too large (try Δt above the limit with speed turned up); the limit is shown below. You can drag the fan on the board while this runs.</p>
+  <div class="card">
+    <canvas id="tchart" class="wide" role="img" aria-label="Chip temperatures against time"></canvas>
+    <div class="row" style="align-items:center">
+      <button class="pri" id="bRun">Run</button>
+      <button id="bReset">Reset (cold start)</button>
+      <label style="font-size:13px">Method <select id="meth"><option value="euler">Euler</option><option value="rk4">Runge–Kutta 4</option></select></label>
+    </div>
+    <div class="sl"><label for="dt">Step Δt</label><input type="range" id="dt" min="1" max="250" step="1" value="10"><output id="dtO"></output></div>
+    <div class="sl"><label for="spd">Speed</label><input type="range" id="spd" min="5" max="1000" step="5" value="60"><output id="spdO"></output></div>
+    <div class="msg" id="tinfo"></div>
+  </div>
 </section>
 
-<div class="callout honest prose"><strong>What this is and is not.</strong> Everything on this site is computed from the stated model. The chip powers, conductivity, convection coefficients and the Gaussian fan shape are assumptions chosen for illustration, and nothing was validated against a physical board. The checks show that the equations are <em>solved correctly</em>, not that the model describes a real product.</div>
+<section id="s4">
+  <h2>4 · Do the hypotheses hold? (recomputed live)</h2>
+  <p class="sub">These checks use the current parameters, so you can try to break them. A hypothesis that fails for some parameters is a result, not an error.</p>
+  <div class="card scroll"><table id="hyp"></table></div>
+</section>
 
-</main>
-<footer>
-FM116 Advanced Calculus · Plaksha University. Instructor: Dr. Suresh Kumar. Raghav Bagga (model, equation, simulation and analysis).<br>
-An educational steady-state approximation, not a validated CFD or product-design tool. All parameters and the Gaussian fan profile are assumptions; nothing has been compared with measurements.
-Heat-transfer framework adapted from Zhang, Y. &amp; Chen, L. (2024), <i>A modeling method for thermal steady-state simulation of the four-layer printed circuit board</i>, PLOS ONE 19(9), e0310237.
-</footer>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<section id="s5">
+  <h2>5 · Assumptions</h2>
+  <div class="card scroll"><table>
+    <tr><th>#</th><th>Assumption</th><th>Meaning</th></tr>
+    <tr><td class="id">A1</td><td>Steady surface</td><td>T(x,y) is the long-time equilibrium; time dependence is handled separately by ODEs for the hot-spot temperatures.</td></tr>
+    <tr><td class="id">A2</td><td>Thin board</td><td>No variation across the thickness, so the board is a surface; thickness enters only through volumes (triple integrals).</td></tr>
+    <tr><td class="id">A3</td><td>Gaussian hot spots</td><td>Chip i adds θ<sub>i</sub>·exp(−|r−c<sub>i</sub>|²/2s<sub>i</sub>²) with fixed spread s<sub>i</sub>. The fan changes only the amplitude θ<sub>i</sub>.</td></tr>
+    <tr><td class="id">A4</td><td>Newton cooling</td><td>Both faces lose heat at h(x,y)(T−T<sub>a</sub>). Edges insulated, radiation neglected, board large against the hot spots (about 5% of the loss integral falls outside the board).</td></tr>
+    <tr><td class="id">A5</td><td>Gaussian fan</td><td>h = h<sub>nat</sub> + Δh·exp(−|r−f|²/2σ²). A real fan is directional.</td></tr>
+    <tr><td class="id">A6</td><td>Averaged cooling</td><td>The cooling a hot spot feels is the profile-weighted average of h, a double integral done in polar coordinates.</td></tr>
+    <tr><td class="id">A7</td><td>Heat sharing</td><td>Hot spots exchange heat with conductance κ<sub>ij</sub> = k·t·w<sub>ij</sub>/d<sub>ij</sub>, a strip of width ½(s<sub>i</sub>+s<sub>j</sub>) and length d<sub>ij</sub>.</td></tr>
+    <tr><td class="id">A8</td><td>Chip temperature</td><td>Chip temperature is the surface value at its centre; chip powers are fixed.</td></tr>
+    <tr><td class="id">A9</td><td>Illustrative numbers</td><td>All parameters are plausible but assumed. Conclusions are about the method and the shape of the answer, not a real board.</td></tr>
+  </table></div>
+</section>
+
+<section id="s6">
+  <h2>6 · Where each syllabus topic appears</h2>
+  <div class="cards4">
+    <div class="card"><h3>Surfaces</h3><p>T(x,y) and the fan profile h(x,y) are surfaces; the landscape in §2 is a surface over fan positions.</p></div>
+    <div class="card"><h3>C⁰, C¹, C² features</h3><p>T<sub>max</sub> has a corner (C⁰, not C¹) along the tie curve; the optimum sits on it. Gradients, level curves and critical points use C¹.</p></div>
+    <div class="card"><h3>Line, double, triple integrals</h3><p>h̄<sub>i</sub> is a double integral over the hot spot; stored heat is a triple integral; the energy balance sums the cooling integrals.</p></div>
+    <div class="card"><h3>ODEs</h3><p>Cθ′ = P − Mθ is a linear first-order system; §3 steps it with Euler and RK4, and its eigenvalues give the time constants.</p></div>
+  </div>
+</section>
+
+<footer>At the default parameters this page reproduces the report's numbers: optimum (46.34, 49.87) mm, T<sub>max</sub> = 45.80 °C, w = 0.5997. The full derivations, proofs and the Python notebook are in the project report.</footer>
+</div>
+
+<script>
+/* PCB fan placement - syllabus-level model (FM116). Port of model.py. */
+const L = 100, W = 80, TH = 1.6, TA = 25, RHO_C = 2e6, MM = 1e-3;
+const CHIPS = [
+  { name: 'CPU',       x: 30, y: 50, s: 18 },
+  { name: 'Regulator', x: 70, y: 55, s: 15 },
+  { name: 'Driver',    x: 65, y: 20, s: 17 },
+];
+const N = CHIPS.length;
+const DEFAULTS = { k: 15, hnat: 10, dh: 60, sig: 12, P: [2.0, 1.0, 0.8] };
+
+function build(p) {
+  const cx = CHIPS.map(c => c.x), cy = CHIPS.map(c => c.y), s = CHIPS.map(c => c.s);
+  const kap = [], lap = [], B = [];
+  for (let i = 0; i < N; i++) { kap.push(new Array(N).fill(0)); lap.push(new Array(N).fill(0)); B.push(new Array(N).fill(0)); }
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const d = Math.hypot(cx[i] - cx[j], cy[i] - cy[j]);
+    if (i !== j) kap[i][j] = p.k * TH * MM * (0.5 * (s[i] + s[j]) * MM) / (d * MM);
+    B[i][j] = Math.exp(-(d * d) / (2 * s[j] * s[j]));
+  }
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    lap[i][j] = (i === j ? kap[i].reduce((a, b) => a + b, 0) : -kap[i][j]);
+  }
+  const cap = s.map(si => RHO_C * TH * MM * 2 * Math.PI * (si * MM) ** 2);
+  return { p, cx, cy, s, kap, lap, B, cap };
+}
+
+function solve(A, b) {                       // Gaussian elimination, partial pivoting
+  const n = b.length, M = A.map((r, i) => r.concat([b[i]]));
+  for (let c = 0; c < n; c++) {
+    let piv = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[piv][c])) piv = r;
+    [M[c], M[piv]] = [M[piv], M[c]];
+    for (let r = c + 1; r < n; r++) { const f = M[r][c] / M[c][c]; for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
+  }
+  const x = new Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) { let t = M[i][n]; for (let j = i + 1; j < n; j++) t -= M[i][j] * x[j]; x[i] = t / M[i][i]; }
+  return x;
+}
+
+// mean cooling coefficient seen by hot spot i: double integral of h against the Gaussian profile
+function hbar(m, fx, fy) {
+  const { p, cx, cy, s } = m;
+  return s.map((si, i) => {
+    if (fx == null) return p.hnat;
+    const v = p.sig ** 2 + si * si, d2 = (fx - cx[i]) ** 2 + (fy - cy[i]) ** 2;
+    return p.hnat + p.dh * p.sig ** 2 / v * Math.exp(-d2 / (2 * v));
+  });
+}
+const conductance = (m, fx, fy) => hbar(m, fx, fy).map((h, i) => 4 * Math.PI * (m.s[i] * MM) ** 2 * h);
+
+function matM(m, G) { return m.lap.map((r, i) => r.map((v, j) => v + (i === j ? G[i] : 0))); }
+function amplitudes(m, fx, fy) { return solve(matM(m, conductance(m, fx, fy)), m.p.P.slice()); }
+function chipTemps(m, fx, fy, th) {
+  th = th || amplitudes(m, fx, fy);
+  return m.B.map(row => TA + row.reduce((a, b, j) => a + b * th[j], 0));
+}
+const tmax = (m, fx, fy) => Math.max(...chipTemps(m, fx, fy));
+function surfaceAt(m, th, x, y) {
+  let T = TA; for (let i = 0; i < N; i++) T += th[i] * Math.exp(-((x - m.cx[i]) ** 2 + (y - m.cy[i]) ** 2) / (2 * m.s[i] ** 2)); return T;
+}
+
+// analytic gradient of each chip temperature w.r.t. fan position (implicit differentiation of M theta = P)
+function gradChip(m, fx, fy) {
+  const { p, cx, cy, s, B } = m;
+  const G = conductance(m, fx, fy), M = matM(m, G), th = solve(M, p.P.slice());
+  const dGx = [], dGy = [];
+  for (let i = 0; i < N; i++) {
+    const v = p.sig ** 2 + s[i] ** 2, e = Math.exp(-((fx - cx[i]) ** 2 + (fy - cy[i]) ** 2) / (2 * v));
+    const c = 4 * Math.PI * (s[i] * MM) ** 2 * p.dh * p.sig ** 2 / v * e;
+    dGx.push(c * (-(fx - cx[i]) / v)); dGy.push(c * (-(fy - cy[i]) / v));
+  }
+  const dtx = solve(M, dGx.map((g, i) => -g * th[i])), dty = solve(M, dGy.map((g, i) => -g * th[i]));
+  const f = B.map(row => TA + row.reduce((a, b, j) => a + b * th[j], 0));
+  const J = B.map(row => [row.reduce((a, b, j) => a + b * dtx[j], 0), row.reduce((a, b, j) => a + b * dty[j], 0)]);
+  return { f, J, th };
+}
+
+// min-norm point of the convex hull of the active gradients = Lagrange weights at a tie
+function descentDir(f, J, tol = 0.05) {
+  const mx = Math.max(...f), act = f.map((v, i) => (v >= mx - tol ? i : -1)).filter(i => i >= 0);
+  if (act.length === 1) return { g: J[act[0]], act, w: [1] };
+  let best = null;
+  if (act.length === 2) {
+    const a = J[act[0]], b = J[act[1]], d = [a[0] - b[0], a[1] - b[1]], dd = d[0] ** 2 + d[1] ** 2;
+    let w = dd > 0 ? -(b[0] * d[0] + b[1] * d[1]) / dd : 0.5; w = Math.min(1, Math.max(0, w));
+    return { g: [w * a[0] + (1 - w) * b[0], w * a[1] + (1 - w) * b[1]], act, w: [w, 1 - w] };
+  }
+  for (let a = 0; a <= 1.0001; a += 0.02) for (let b = 0; a + b <= 1.0001; b += 0.02) {
+    const w = [a, b, 1 - a - b], g = [0, 1].map(k => w.reduce((s, wi, q) => s + wi * J[act[q]][k], 0)), n = g[0] ** 2 + g[1] ** 2;
+    if (!best || n < best.n) best = { n, g, w };
+  }
+  return { g: best.g, act, w: best.w };
+}
+
+// one backtracking step of minimax descent; returns null when stationary
+function descendStep(m, x, y, step = 1.0) {
+  const { f, J } = gradChip(m, x, y), { g, act, w } = descentDir(f, J), n = Math.hypot(g[0], g[1]);
+  if (n < 2e-3) return { done: true, x, y, f, act, w, gnorm: n };
+  const cur = Math.max(...f);
+  for (let s = step; s > 1e-4; s /= 2) {
+    const nx = Math.min(L, Math.max(0, x - s * g[0] / n)), ny = Math.min(W, Math.max(0, y - s * g[1] / n));
+    if (tmax(m, nx, ny) < cur - 1e-9) return { done: false, x: nx, y: ny, f, act, w, gnorm: n };
+  }
+  return { done: true, x, y, f, act, w, gnorm: n };
+}
+
+// exact Lagrange system at a two-way tie: f_i = f_j, w grad f_i + (1-w) grad f_j = 0   (Newton's method)
+function refineTie(m, x, y, i, j) {
+  const F = v => { const { f, J } = gradChip(m, v[0], v[1]); return [f[i] - f[j], v[2] * J[i][0] + (1 - v[2]) * J[j][0], v[2] * J[i][1] + (1 - v[2]) * J[j][1]]; };
+  let v = [x, y, 0.5];
+  for (let it = 0; it < 50; it++) {
+    const Fv = F(v); if (Math.max(...Fv.map(Math.abs)) < 1e-11) break;
+    const Jc = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], e = 1e-6;
+    for (let k = 0; k < 3; k++) { const a = v.slice(), b = v.slice(); a[k] += e; b[k] -= e; const fa = F(a), fb = F(b); for (let r = 0; r < 3; r++) Jc[r][k] = (fa[r] - fb[r]) / (2 * e); }
+    const dv = solve(Jc, Fv); v = v.map((q, k) => q - dv[k]);
+  }
+  return { x: v[0], y: v[1], w: v[2], resid: Math.max(...F(v).map(Math.abs)) };
+}
+
+// time constants: eigenvalues of C^{-1/2} M C^{-1/2}  (symmetric -> Jacobi rotations)
+function eigenvalues(m, fx, fy) {
+  const M = matM(m, conductance(m, fx, fy)), A = M.map((r, i) => r.map((v, j) => v / Math.sqrt(m.cap[i] * m.cap[j])));
+  for (let sweep = 0; sweep < 60; sweep++) {
+    let off = 0; for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) off += A[i][j] ** 2; if (off < 1e-24) break;
+    for (let p = 0; p < N; p++) for (let q = p + 1; q < N; q++) {
+      if (Math.abs(A[p][q]) < 1e-30) continue;
+      const th = (A[q][q] - A[p][p]) / (2 * A[p][q]), t = Math.sign(th || 1) / (Math.abs(th) + Math.sqrt(th * th + 1)), c = 1 / Math.sqrt(t * t + 1), s = t * c;
+      for (let k = 0; k < N; k++) { const kp = A[k][p], kq = A[k][q]; A[k][p] = c * kp - s * kq; A[k][q] = s * kp + c * kq; }
+      for (let k = 0; k < N; k++) { const pk = A[p][k], qk = A[q][k]; A[p][k] = c * pk - s * qk; A[q][k] = s * pk + c * qk; }
+    }
+  }
+  return A.map((r, i) => r[i]).sort((a, b) => a - b);   // rates [1/s]
+}
+
+// transient ODE   C theta' = P - M theta
+function rhs(m, th, fx, fy) {
+  const M = matM(m, conductance(m, fx, fy));
+  return th.map((_, i) => (m.p.P[i] - M[i].reduce((a, v, j) => a + v * th[j], 0)) / m.cap[i]);
+}
+function stepODE(m, th, dt, fx, fy, method) {
+  const add = (a, b, c) => a.map((v, i) => v + c * b[i]);
+  if (method === 'euler') return add(th, rhs(m, th, fx, fy), dt);
+  const k1 = rhs(m, th, fx, fy), k2 = rhs(m, add(th, k1, dt / 2), fx, fy), k3 = rhs(m, add(th, k2, dt / 2), fx, fy), k4 = rhs(m, add(th, k3, dt), fx, fy);
+  return th.map((v, i) => v + dt / 6 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]));
+}
+
+if (false) module.exports = { L, W, CHIPS, N, DEFAULTS, TA, build, hbar, conductance, amplitudes, chipTemps, tmax, surfaceAt, gradChip, descentDir, descendStep, refineTie, eigenvalues, stepODE, matM };
+
+</script>
 <script>
 (function(){
-  var root=document.documentElement;
-  try{var t=localStorage.getItem("theme");if(t)root.setAttribute("data-theme",t);}catch(e){}
-  document.getElementById("themeBtn").addEventListener("click",function(){
-    var dark=root.getAttribute("data-theme")==="dark"||(!root.getAttribute("data-theme")&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);
-    var n=dark?"light":"dark";root.setAttribute("data-theme",n);try{localStorage.setItem("theme",n);}catch(e){}
-    document.dispatchEvent(new Event("themechange"));
-  });
-  if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}],throwOnError:false});
+"use strict";
+const $=s=>document.querySelector(s);
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const params=JSON.parse(JSON.stringify(DEFAULTS));
+let m=build(params);
+const fan={x:30,y:50,on:true};
+const S={th:null,f:null,hb:null,dir:null,path:[],anim:null,opt:null,land:null,msg:null};
+const TLO=25,THI=75;
+const RC=RHO_C*TH*MM;  // rho c t  [J/m2K]
+
+/* ---------- colour maps ---------- */
+const INF=[[0,[0,0,4]],[.2,[40,11,84]],[.4,[101,21,110]],[.55,[159,42,99]],[.7,[212,72,66]],[.85,[245,125,21]],[.95,[250,193,39]],[1,[252,255,164]]];
+const GOOD=[[0,[15,118,110]],[.5,[238,230,205]],[1,[194,65,12]]];
+function ramp(st,t){t=Math.max(0,Math.min(1,t));for(let i=1;i<st.length;i++){if(t<=st[i][0]){const a=st[i-1],b=st[i],u=(t-a[0])/(b[0]-a[0]);return a[1].map((v,k)=>v+(b[1][k]-v)*u);}}return st[st.length-1][1];}
+const rgb=c=>`rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
+function cssGrad(st){return 'linear-gradient(90deg,'+st.map(s=>rgb(s[1])+' '+(s[0]*100)+'%').join(',')+')';}
+$('#cbar1').style.background=cssGrad(INF); $('#cbar2').style.background=cssGrad(GOOD);
+
+/* ---------- helpers ---------- */
+function fit(cv){const r=cv.getBoundingClientRect(),d=Math.min(2,window.devicePixelRatio||1);cv.width=Math.max(10,Math.round(r.width*d));cv.height=Math.max(10,Math.round(r.height*d));return d;}
+function contours(vals,nx,ny,dx,dy,level){
+  const segs=[],v=(i,j)=>vals[j*nx+i];
+  for(let j=0;j<ny-1;j++)for(let i=0;i<nx-1;i++){
+    const a=v(i,j),b=v(i+1,j),c=v(i+1,j+1),d=v(i,j+1),x0=i*dx,y0=j*dy,x1=x0+dx,y1=y0+dy,pts=[];
+    const cr=(p,q,xa,ya,xb,yb)=>{if((p-level)*(q-level)<0){const t=(level-p)/(q-p);pts.push([xa+(xb-xa)*t,ya+(yb-ya)*t]);}};
+    cr(a,b,x0,y0,x1,y0);cr(b,c,x1,y0,x1,y1);cr(d,c,x0,y1,x1,y1);cr(a,d,x0,y0,x0,y1);
+    if(pts.length===2)segs.push([pts[0][0],pts[0][1],pts[1][0],pts[1][1]]);
+    else if(pts.length===4){segs.push([pts[0][0],pts[0][1],pts[1][0],pts[1][1]]);segs.push([pts[2][0],pts[2][1],pts[3][0],pts[3][1]]);}
+  }
+  return segs;
+}
+const off=document.createElement('canvas');
+function pointerMM(ev,cv){const r=cv.getBoundingClientRect();return [Math.max(0,Math.min(L,(ev.clientX-r.left)/r.width*L)),Math.max(0,Math.min(W,(1-(ev.clientY-r.top)/r.height)*W))];}
+
+/* ---------- board ---------- */
+function drawBoard(){
+  const cv=$('#board'),ctx=cv.getContext('2d'),w=cv.width,h=cv.height,d=w/cv.getBoundingClientRect().width||1;
+  const NX=200,NY=160;off.width=NX;off.height=NY;const oc=off.getContext('2d'),img=oc.createImageData(NX,NY),th=S.th;
+  for(let j=0;j<NY;j++){const y=W-(j+.5)/NY*W;for(let i=0;i<NX;i++){const x=(i+.5)/NX*L;const T=surfaceAt(m,th,x,y),c=ramp(INF,(T-TLO)/(THI-TLO)),o=(j*NX+i)*4;img.data[o]=c[0];img.data[o+1]=c[1];img.data[o+2]=c[2];img.data[o+3]=255;}}
+  oc.putImageData(img,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(off,0,0,w,h);
+  const X=x=>x/L*w,Y=y=>(1-y/W)*h,sc=w/L;
+  if($('#optIso').checked){
+    const gx=101,gy=81,g=new Float32Array(gx*gy);for(let j=0;j<gy;j++)for(let i=0;i<gx;i++)g[j*gx+i]=surfaceAt(m,th,i,j);
+    ctx.lineWidth=1*d;
+    for(let lv=30;lv<=75;lv+=5){ctx.strokeStyle=lv===45?'rgba(255,255,255,.85)':'rgba(255,255,255,.28)';ctx.lineWidth=(lv===45?1.6:1)*d;ctx.beginPath();for(const s of contours(g,gx,gy,1,1,lv)){ctx.moveTo(X(s[0]),Y(s[1]));ctx.lineTo(X(s[2]),Y(s[3]));}ctx.stroke();}
+  }
+  // descent path
+  if(S.path.length>1){ctx.strokeStyle='#5eead4';ctx.lineWidth=2*d;ctx.setLineDash([5*d,4*d]);ctx.beginPath();S.path.forEach((p,k)=>k?ctx.lineTo(X(p[0]),Y(p[1])):ctx.moveTo(X(p[0]),Y(p[1])));ctx.stroke();ctx.setLineDash([]);}
+  // chips
+  ctx.font=`${500*1} ${11*d}px ${css('--mono')}`;ctx.textAlign='center';
+  CHIPS.forEach((c,i)=>{const s=9*d;ctx.fillStyle='rgba(10,10,12,.55)';ctx.fillRect(X(c.x)-s/2-1,Y(c.y)-s/2-1,s+2,s+2);ctx.fillStyle='#fff';ctx.fillRect(X(c.x)-s/2,Y(c.y)-s/2,s,s);
+    const lab=`${c.name} ${S.f[i].toFixed(1)}°`,tw=ctx.measureText(lab).width;ctx.fillStyle='rgba(10,10,12,.62)';ctx.fillRect(X(c.x)-tw/2-4*d,Y(c.y)-s/2-17*d,tw+8*d,15*d);ctx.fillStyle='#fff';ctx.fillText(lab,X(c.x),Y(c.y)-s/2-6*d);});
+  // optimum marker
+  if(S.opt){ctx.strokeStyle='#fff';ctx.fillStyle='#5eead4';ctx.lineWidth=1.5*d;ctx.beginPath();ctx.arc(X(S.opt.x),Y(S.opt.y),4*d,0,7);ctx.stroke();}
+  // fan
+  if(fan.on){
+    const r=params.sig*sc;ctx.fillStyle='rgba(45,212,191,.16)';ctx.strokeStyle='#5eead4';ctx.lineWidth=2*d;ctx.beginPath();ctx.arc(X(fan.x),Y(fan.y),r,0,7);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#5eead4';ctx.beginPath();ctx.arc(X(fan.x),Y(fan.y),4*d,0,7);ctx.fill();
+    if($('#optArrow').checked&&S.dir&&S.dir.g){const g=S.dir.g,n=Math.hypot(g[0],g[1]);if(n>2e-3){const len=Math.max(r*1.05,14*d),ex=X(fan.x)-g[0]/n*len,ey=Y(fan.y)+g[1]/n*len,ang=Math.atan2(ey-Y(fan.y),ex-X(fan.x));
+      ctx.strokeStyle='#fff';ctx.lineWidth=2.5*d;ctx.beginPath();ctx.moveTo(X(fan.x),Y(fan.y));ctx.lineTo(ex,ey);ctx.stroke();
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(ex-9*d*Math.cos(ang-.45),ey-9*d*Math.sin(ang-.45));ctx.lineTo(ex-9*d*Math.cos(ang+.45),ey-9*d*Math.sin(ang+.45));ctx.fill();}}
+  }
+  // frame text
+  ctx.fillStyle='rgba(255,255,255,.75)';ctx.font=`${10*d}px ${css('--mono')}`;ctx.textAlign='left';ctx.fillText('100 mm →',6*d,h-6*d);
+}
+
+/* ---------- readout ---------- */
+const chipsEl=$('#chips');
+chipsEl.innerHTML=CHIPS.map((c,i)=>`<div class="chip"><span class="nm">${c.name}</span><span class="track"><span class="fill" id="fb${i}" style="background:var(--c${i})"></span></span><span class="t" id="ft${i}"></span><span class="meta" id="fm${i}"></span></div>`).join('');
+function recalc(){
+  m=build(params);const fx=fan.on?fan.x:null,fy=fan.on?fan.y:null;
+  S.th=amplitudes(m,fx,fy);S.f=chipTemps(m,fx,fy,S.th);S.hb=hbar(m,fx,fy);
+  if(fan.on){const g=gradChip(m,fan.x,fan.y);S.dir=descentDir(g.f,g.J);}else S.dir=null;
+  const mx=Math.max(...S.f),hot=S.f.map((v,i)=>v>=mx-0.05?i:-1).filter(i=>i>=0);
+  $('#tmax').textContent=mx.toFixed(1);
+  $('#who').textContent=hot.length>1?'tie: '+hot.map(i=>CHIPS[i].name).join(' = '):'hottest: '+CHIPS[hot[0]].name;
+  S.f.forEach((v,i)=>{$('#ft'+i).textContent=v.toFixed(1)+'°';$('#fb'+i).style.width=Math.max(2,Math.min(100,(v-TLO)/(THI-TLO)*100))+'%';
+    $('#fm'+i).textContent=`h̄ = ${S.hb[i].toFixed(1)} W/m²K · θ = ${S.th[i].toFixed(1)} K · P = ${params.P[i].toFixed(1)} W`;});
+  $('#bOnOff').textContent=fan.on?'Fan off':'Fan on';
+  setMsg();drawBoard();if(S.land)drawLand();tInfo();
+}
+function setMsg(){
+  const el=$('#msg');
+  if(S.msg){el.innerHTML=S.msg;return;}
+  if(!fan.on){el.innerHTML='Natural convection only: every spot sees h = '+params.hnat+' W/m²K.';return;}
+  const g=S.dir;let t=`Fan at <b>(${fan.x.toFixed(1)}, ${fan.y.toFixed(1)})</b> mm.`;
+  if(g&&g.act.length>1)t+=` ${g.act.map(i=>CHIPS[i].name).join(' and ')} are tied; the weights that cancel their gradients are <b>${g.w.map(v=>v.toFixed(3)).join(' / ')}</b>, leaving a residual slope of <b>${Math.hypot(...g.g).toFixed(3)} K/mm</b>.`;
+  else if(g)t+=` Moving the fan along the arrow lowers ${CHIPS[g.act[0]].name} by <b>${Math.hypot(...g.g).toFixed(3)} K</b> per mm.`;
+  el.innerHTML=t;
+}
+
+/* ---------- optimum + landscape ---------- */
+const LNX=51,LNY=41;
+function computeLand(){
+  const F=[0,1,2].map(()=>new Float32Array(LNX*LNY)),T=new Float32Array(LNX*LNY);let bi=0,bv=1e9;
+  for(let j=0;j<LNY;j++)for(let i=0;i<LNX;i++){const k=j*LNX+i,ct=chipTemps(m,i*2,j*2);F[0][k]=ct[0];F[1][k]=ct[1];F[2][k]=ct[2];T[k]=Math.max(ct[0],ct[1],ct[2]);if(T[k]<bv){bv=T[k];bi=k;}}
+  let x=(bi%LNX)*2,y=Math.floor(bi/LNX)*2,r=null;
+  for(let k=0;k<400;k++){r=descendStep(m,x,y);if(r.done)break;x=r.x;y=r.y;}
+  let act=r.act,w=r.w,res=null;
+  if(act.length===2){const t=refineTie(m,x,y,act[0],act[1]);if(t.resid<1e-8&&Math.abs(t.x-x)<4&&Math.abs(t.y-y)<4){x=t.x;y=t.y;w=[t.w,1-t.w];res=t.resid;}}
+  S.opt={x,y,T:tmax(m,x,y),act,w,res};
+  S.land={T,F,min:Math.min(...T),max:Math.max(...T)};
+  const lc=document.createElement('canvas');lc.width=LNX;lc.height=LNY;const c=lc.getContext('2d'),im=c.createImageData(LNX,LNY),lo=S.land.min,hi=S.land.max;
+  for(let j=0;j<LNY;j++)for(let i=0;i<LNX;i++){const col=ramp(GOOD,(T[j*LNX+i]-lo)/(hi-lo||1)),o=((LNY-1-j)*LNX+i)*4;im.data[o]=col[0];im.data[o+1]=col[1];im.data[o+2]=col[2];im.data[o+3]=255;}
+  c.putImageData(im,0,0);S.land.img=lc;
+  $('#lmin').textContent=lo.toFixed(1)+' °C (best)';$('#lmid').textContent='';$('#lmax').textContent=hi.toFixed(1)+' °C';
+}
+function drawLand(){
+  const cv=$('#land'),ctx=cv.getContext('2d'),w=cv.width,h=cv.height,d=w/cv.getBoundingClientRect().width||1,X=x=>x/L*w,Y=y=>(1-y/W)*h;
+  ctx.imageSmoothingEnabled=true;ctx.drawImage(S.land.img,0,0,w,h);
+  ctx.lineWidth=1*d;ctx.strokeStyle='rgba(0,0,0,.28)';ctx.beginPath();
+  for(let lv=Math.ceil(S.land.min/2)*2;lv<S.land.max;lv+=2)for(const s of contours(S.land.T,LNX,LNY,2,2,lv)){ctx.moveTo(X(s[0]),Y(s[1]));ctx.lineTo(X(s[2]),Y(s[3]));}ctx.stroke();
+  const o=S.opt;
+  if(o.act.length===2){const D=new Float32Array(LNX*LNY),a=S.land.F[o.act[0]],b=S.land.F[o.act[1]];for(let k=0;k<D.length;k++)D[k]=a[k]-b[k];
+    ctx.strokeStyle='#fff';ctx.lineWidth=2*d;ctx.setLineDash([6*d,5*d]);ctx.beginPath();for(const s of contours(D,LNX,LNY,2,2,0)){ctx.moveTo(X(s[0]),Y(s[1]));ctx.lineTo(X(s[2]),Y(s[3]));}ctx.stroke();ctx.setLineDash([]);}
+  CHIPS.forEach((c,i)=>{ctx.fillStyle='#111';ctx.fillRect(X(c.x)-3*d,Y(c.y)-3*d,6*d,6*d);ctx.fillStyle=css('--ink');ctx.font=`${500} ${10.5*d}px ${css('--mono')}`;ctx.textAlign='center';ctx.fillText(c.name,X(c.x),Y(c.y)-7*d);});
+  ctx.fillStyle='#fff';ctx.strokeStyle='#111';ctx.lineWidth=1.5*d;ctx.font=`${20*d}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.strokeText('★',X(o.x),Y(o.y));ctx.fillText('★',X(o.x),Y(o.y));ctx.textBaseline='alphabetic';
+  if(fan.on){ctx.strokeStyle='#fff';ctx.lineWidth=2.5*d;ctx.beginPath();ctx.arc(X(fan.x),Y(fan.y),6*d,0,7);ctx.stroke();ctx.strokeStyle='#111';ctx.lineWidth=1*d;ctx.beginPath();ctx.arc(X(fan.x),Y(fan.y),8*d,0,7);ctx.stroke();}
+  const nm=o.act.map(i=>CHIPS[i].name);
+  $('#landText').innerHTML=o.act.length>=2
+    ?`The best spot is <b>(${o.x.toFixed(1)}, ${o.y.toFixed(1)}) mm</b>, not on any chip. There ${nm.join(' = ')} at <b>${o.T.toFixed(2)} °C</b>. Pushing the fan toward one chip cools it but heats the other, so the minimum of the maximum sits on the line where they are equal. That line is a crease in the surface: T<sub>max</sub> is continuous but not differentiable there.`
+    :`With these parameters one chip (${nm[0]}) stays the hottest everywhere near the optimum, so the minimum is smooth: <b>(${o.x.toFixed(1)}, ${o.y.toFixed(1)}) mm</b> at <b>${o.T.toFixed(2)} °C</b> where its gradient is zero.`;
+  $('#landEv').textContent=`Fan now: ${fan.on?fan.x.toFixed(1)+', '+fan.y.toFixed(1):'off'} · no fan: ${Math.max(...chipTemps(m,null,null)).toFixed(1)} °C · optimum: ${o.T.toFixed(2)} °C`;
+}
+
+/* ---------- hypotheses ---------- */
+function updateHyp(){
+  const o=S.opt;if(!o)return;const g=gradChip(m,o.x,o.y),a=o.act,pill=(ok,t)=>`<span class="pill ${ok===null?'wr':ok?'ok':'no'}">${t}</span>`;
+  const overChip=CHIPS.map(c=>tmax(m,c.x,c.y)),best=Math.min(...overChip);
+  const h1=a.length>=2&&o.T<best-0.05;
+  let h2='n/a',h2ok=false,cos=NaN;
+  if(a.length>=2){const u=g.J[a[0]],v=g.J[a[1]];cos=(u[0]*v[0]+u[1]*v[1])/(Math.hypot(...u)*Math.hypot(...v));const w=o.w[0],r=Math.hypot(w*u[0]+(1-w)*v[0],w*u[1]+(1-w)*v[1]);h2ok=cos<-0.999;h2=`cos∠(∇f₁,∇f₂) = ${cos.toFixed(4)}, w = ${w.toFixed(4)}, |w∇f₁+(1−w)∇f₂| = ${r.toExponential(1)}`;}
+  const e=1e-4,T0=tmax(m,o.x,o.y),dr=(tmax(m,o.x+e,o.y)-T0)/e,dl=(T0-tmax(m,o.x-e,o.y))/e,h3ok=Math.abs(dr-dl)>0.01;
+  const lam=eigenvalues(m,o.x,o.y),h5ok=lam.every(v=>v>0);
+  $('#hyp').innerHTML=`<tr><th>#</th><th>Hypothesis</th><th>Evidence at current parameters</th><th>Verdict</th></tr>
+  <tr><td class="id">H1</td><td>Best fan position is not on the hottest chip; it is between the two hottest, where they tie.</td><td class="ev">optimum (${o.x.toFixed(1)}, ${o.y.toFixed(1)}), ${a.map(i=>CHIPS[i].name+' '+g.f[i].toFixed(2)).join(' vs ')} °C; over CPU ${overChip[0].toFixed(1)}, over regulator ${overChip[1].toFixed(1)} °C</td><td>${pill(h1,h1?'supported':'not here')}</td></tr>
+  <tr><td class="id">H2</td><td>At the optimum the tied gradients are anti-parallel (Lagrange condition, weights sum to 1).</td><td class="ev">${h2}</td><td>${a.length>=2?pill(h2ok,h2ok?'supported':'not here'):pill(null,'no tie')}</td></tr>
+  <tr><td class="id">H3</td><td>T<sub>max</sub> is C⁰ but not C¹ in the fan position at the optimum.</td><td class="ev">∂T<sub>max</sub>/∂x from the left ${dl.toFixed(4)}, from the right ${dr.toFixed(4)} K/mm</td><td>${pill(h3ok,h3ok?'supported':'not here')}</td></tr>
+  <tr><td class="id">H4</td><td>The optimum moves under 1 mm for ±20% in h<sub>nat</sub>, Δh, σ, k, but is sensitive to the ratio of chip powers.</td><td class="ev">Not recomputed here. Move the sliders and watch ★ in §2; the report tabulates the shifts.</td><td>${pill(null,'see report')}</td></tr>
+  <tr><td class="id">H5</td><td>The equilibrium is stable: all time constants positive.</td><td class="ev">time constants at the optimum: ${lam.map(v=>(1/v).toFixed(1)).reverse().join(', ')} s</td><td>${pill(h5ok,h5ok?'supported':'not here')}</td></tr>`;
+}
+
+/* ---------- transient ---------- */
+const sim={t:0,th:[0,0,0],hist:[],run:false,acc:0,dead:false,last:0};
+function simReset(){sim.t=0;sim.th=[0,0,0];sim.acc=0;sim.dead=false;sim.hist=[{t:0,T:[TA,TA,TA]}];drawT();tInfo();}
+function simStep(){
+  const dt=+$('#dt').value,fx=fan.on?fan.x:null,fy=fan.on?fan.y:null;
+  sim.th=stepODE(m,sim.th,dt,fx,fy,$('#meth').value);sim.t+=dt;
+  const T=sim.th.map((_,i)=>TA+m.B[i].reduce((a,b,j)=>a+b*sim.th[j],0));
+  if(!T.every(v=>isFinite(v)&&Math.abs(v)<1e5)){sim.dead=true;sim.run=false;$('#bRun').textContent='Run';}
+  sim.hist.push({t:sim.t,T:T.map(v=>Math.max(-50,Math.min(400,v)))});if(sim.hist.length>30000)sim.hist.splice(1,2000);
+}
+function drawT(){
+  const cv=$('#tchart'),ctx=cv.getContext('2d'),w=cv.width,h=cv.height,d=w/cv.getBoundingClientRect().width||1;
+  ctx.clearRect(0,0,w,h);const pl=46*d,pr=64*d,pt=12*d,pb=26*d,pw=w-pl-pr,ph=h-pt-pb;
+  const eq=S.f,hmax=Math.max(...sim.hist.map(p=>Math.max(...p.T)));
+  const ymax=Math.max(40,Math.ceil((Math.max(Math.max(...eq),hmax)+4)/10)*10),ymin=20,tmaxx=Math.max(600,Math.ceil(sim.t*1.08/100)*100);
+  const X=t=>pl+t/tmaxx*pw,Y=v=>pt+(1-(v-ymin)/(ymax-ymin))*ph;
+  ctx.font=`${11*d}px ${css('--mono')}`;ctx.fillStyle=css('--muted');ctx.strokeStyle=css('--grid');ctx.lineWidth=1*d;ctx.textAlign='right';
+  for(let v=ymin;v<=ymax;v+=ymax-ymin>80?20:10){ctx.beginPath();ctx.moveTo(pl,Y(v));ctx.lineTo(pl+pw,Y(v));ctx.stroke();ctx.fillText(v+'',pl-6*d,Y(v)+4*d);}
+  ctx.textAlign='center';const stepT=tmaxx>1500?500:tmaxx>700?200:100;for(let t=0;t<=tmaxx;t+=stepT){ctx.beginPath();ctx.moveTo(X(t),pt);ctx.lineTo(X(t),pt+ph);ctx.stroke();ctx.fillText(t+'',X(t),h-8*d);}
+  ctx.textAlign='left';ctx.fillText('t [s]',pl+pw+8*d,h-8*d);ctx.fillText('°C',4*d,pt+8*d);
+  const ly=eq.map(Y),ord=[0,1,2].sort((a,b)=>ly[a]-ly[b]);for(let k=1;k<3;k++){if(ly[ord[k]]-ly[ord[k-1]]<13*d)ly[ord[k]]=ly[ord[k-1]]+13*d;}
+  CHIPS.forEach((c,i)=>{const col=css('--c'+i);
+    ctx.setLineDash([3*d,4*d]);ctx.strokeStyle=col;ctx.globalAlpha=.7;ctx.lineWidth=1.2*d;ctx.beginPath();ctx.moveTo(pl,Y(eq[i]));ctx.lineTo(pl+pw,Y(eq[i]));ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+    ctx.lineWidth=2*d;ctx.beginPath();sim.hist.forEach((p,k)=>{const x=X(p.t),y=Y(p.T[i]);k?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();
+    ctx.fillStyle=col;ctx.fillText(c.name,pl+pw+6*d,ly[i]+4*d);});
+  if(sim.dead){ctx.fillStyle=css('--bad');ctx.font=`600 ${15*d}px ${css('--sans')}`;ctx.textAlign='center';ctx.fillText('The solution has blown up: Δt is above the stability limit',pl+pw/2,pt+ph/2);}
+}
+function tInfo(){
+  if(!S.f)return;const fx=fan.on?fan.x:null,fy=fan.on?fan.y:null,lam=eigenvalues(m,fx,fy),lmax=lam[lam.length-1],dt=+$('#dt').value,meth=$('#meth').value;
+  const lim=(meth==='euler'?2:2.785)/lmax,ok=dt<lim;
+  $('#dtO').textContent=dt+' s';$('#spdO').textContent=$('#spd').value+'×';
+  const tau=S.hb.map(h=>RC/(2*h));
+  $('#tinfo').innerHTML=`Per-spot time constants τ<sub>i</sub> = ρct/(2h̄<sub>i</sub>): <b>${tau.map(v=>v.toFixed(0)).join(' / ')} s</b> (CPU / regulator / driver). Fastest mode: ${(1/lmax).toFixed(0)} s. Step limit for ${meth==='euler'?'Euler 2/λ':'RK4 2.78/λ'}<sub>max</sub> = <b>${lim.toFixed(0)} s</b> · Δt = ${dt} s <span class="pill ${ok?'ok':'no'}">${ok?'stable':'unstable'}</span> · t = ${sim.t.toFixed(0)} s`;
+}
+function loop(ts){
+  let need=false;
+  if(S.anim){need=true;
+    for(let k=0;k<2&&S.anim;k++){const r=descendStep(m,fan.x,fan.y,1.0);
+      if(r.done){finishOpt(r);break;}fan.x=r.x;fan.y=r.y;S.path.push([fan.x,fan.y]);}
+    recalc();
+  }
+  if(sim.run){need=true;const dtr=Math.min(0.1,(ts-sim.last)/1000||0.016);sim.acc+=dtr*(+$('#spd').value);const dt=+$('#dt').value;let n=0;while(sim.acc>=dt&&n<400&&sim.run){simStep();sim.acc-=dt;n++;}if(sim.acc>dt*400)sim.acc=0;drawT();tInfo();}
+  sim.last=ts;if(need)requestAnimationFrame(loop);else loopOn=false;
+}
+let loopOn=false;function kick(){if(!loopOn){loopOn=true;sim.last=performance.now();requestAnimationFrame(loop);}}
+function finishOpt(r){
+  S.anim=null;const a=r.act;let txt=`Descent stopped at (${fan.x.toFixed(2)}, ${fan.y.toFixed(2)}) mm.`;
+  if(a.length===2){const t=refineTie(m,fan.x,fan.y,a[0],a[1]);if(t.resid<1e-8){fan.x=t.x;fan.y=t.y;S.path.push([fan.x,fan.y]);txt=`Newton on the Lagrange system: <b>(${t.x.toFixed(3)}, ${t.y.toFixed(3)}) mm</b>, ${CHIPS[a[0]].name} = ${CHIPS[a[1]].name}, weight w = <b>${t.w.toFixed(4)}</b>, residual ${t.resid.toExponential(1)}.`;}}
+  S.msg=txt;recalc();
+}
+
+/* ---------- controls ---------- */
+const SL=[['hnat','h natural',5,25,.5,'W/m²K'],['dh','Δh fan boost',10,120,1,'W/m²K'],['sig','σ fan radius',4,30,.5,'mm'],['k','k board',5,40,.5,'W/mK'],['P0','CPU power',.5,4,.1,'W'],['P1','Regulator power',.2,3,.1,'W'],['P2','Driver power',.2,3,.1,'W']];
+$('#sliders').innerHTML=SL.map(s=>`<div class="sl"><label for="p_${s[0]}">${s[1]}</label><input type="range" id="p_${s[0]}" min="${s[2]}" max="${s[3]}" step="${s[4]}"><output id="o_${s[0]}"></output></div>`).join('');
+function syncSliders(){SL.forEach(s=>{const v=s[0][0]==='P'&&s[0].length===2?params.P[+s[0][1]]:params[s[0]];$('#p_'+s[0]).value=v;$('#o_'+s[0]).textContent=(+v).toFixed(s[4]<1?1:0)+' '+s[5];});}
+SL.forEach(s=>$('#p_'+s[0]).addEventListener('input',e=>{const v=+e.target.value;if(s[0][0]==='P'&&s[0].length===2)params.P[+s[0][1]]=v;else params[s[0]]=v;S.path=[];S.msg=null;syncSliders();schedule();}));
+$('#bDefaults').onclick=()=>{Object.assign(params,JSON.parse(JSON.stringify(DEFAULTS)));S.path=[];S.msg=null;syncSliders();schedule();};
+let pend=false;function schedule(){if(pend)return;pend=true;requestAnimationFrame(()=>{pend=false;m=build(params);computeLand();updateHyp();recalc();simReset();});}
+function place(x,y){fan.x=x;fan.y=y;fan.on=true;S.path=[];S.anim=null;S.msg=null;recalc();}
+function dragOn(cv){let dn=false;cv.addEventListener('pointerdown',e=>{dn=true;cv.setPointerCapture(e.pointerId);const p=pointerMM(e,cv);place(p[0],p[1]);});cv.addEventListener('pointermove',e=>{if(dn){const p=pointerMM(e,cv);place(p[0],p[1]);}});cv.addEventListener('pointerup',()=>dn=false);cv.addEventListener('pointercancel',()=>dn=false);}
+dragOn($('#board'));dragOn($('#land'));
+$('#board').addEventListener('keydown',e=>{const k={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,1],ArrowDown:[0,-1]}[e.key];if(k){e.preventDefault();place(Math.max(0,Math.min(L,fan.x+k[0])),Math.max(0,Math.min(W,fan.y+k[1])));}});
+$('#bFind').onclick=()=>{fan.on=true;S.path=[[fan.x,fan.y]];S.msg='Descending…';S.anim=true;kick();};
+$('#bOnOff').onclick=()=>{fan.on=!fan.on;S.path=[];S.msg=null;recalc();};
+$('#bCPU').onclick=()=>place(CHIPS[0].x,CHIPS[0].y);
+$('#bReg').onclick=()=>place(CHIPS[1].x,CHIPS[1].y);
+$('#optIso').onchange=drawBoard;$('#optArrow').onchange=drawBoard;
+$('#bRun').onclick=()=>{if(sim.dead)simReset();sim.run=!sim.run;$('#bRun').textContent=sim.run?'Pause':'Run';kick();};
+$('#bReset').onclick=()=>{sim.run=false;$('#bRun').textContent='Run';simReset();};
+['dt','spd','meth'].forEach(id=>$('#'+id).addEventListener('input',()=>{tInfo();}));
+$('#meth').addEventListener('change',()=>{sim.run=false;$('#bRun').textContent='Run';simReset();});
+$('#dt').addEventListener('change',()=>{if(sim.dead)simReset();});
+
+/* ---------- boot ---------- */
+function refit(){['#board','#land','#tchart'].forEach(s=>fit($(s)));if(S.f){drawBoard();if(S.land)drawLand();drawT();}}
+new ResizeObserver(refit).observe(document.body);
+try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{drawBoard();drawLand();drawT();});}catch(e){}
+syncSliders();['#board','#land','#tchart'].forEach(s=>fit($(s)));
+computeLand();updateHyp();recalc();simReset();
+window.__pcb={params,fan,S,sim,recalc,place,computeLand,simStep};
 })();
 </script>
 
-</body></html>
+</body>
+</html>
